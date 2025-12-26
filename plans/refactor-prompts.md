@@ -72,4 +72,32 @@ Use these prompts one by one. Each prompt tells the assistant exactly what to do
 
 ---
 
-Use each prompt separately in order. After finishing Prompt 12, the project should be structurally aligned with app/requirements.md and ready for manual testing on your device.
+## 6. UI & UX Cleanup – Neomorphism-Inspired Design
+
+**Prompt 13 – Define global visual language and theme**
+
+> In this repo, redesign the Compose Material 3 theme (colors, typography, shapes) to create a clean, low-contrast, neomorphism-inspired visual language: soft background (light grey or desaturated dark), subtle dual shadows for main surfaces, rounded corners (12–20 dp), and minimal emoji usage. Update app/src/main/java/com/example/taskandtimemanager/ui/theme/Color.kt and Theme.kt to use a small, coherent palette (primary, secondary, accent, success/error) and ensure all screens rely on theme colors instead of hard-coded values.
+
+**Prompt 14 – Unify layout structure and spacing**
+
+> In this repo, refactor all major screens (DashboardScreen.kt, TasksScreen.kt, CostsScreen.kt, SettingsScreen.kt) to use a consistent layout scaffold: top title, optional subtitle, main card-like surfaces with uniform padding (16–24 dp), and consistent vertical spacing (8–12 dp). Remove unnecessary emojis from titles, keep copy short and neutral, and make sure all primary actions are visually aligned and use the same button style.
+
+**Prompt 15 – Apply neomorphism-inspired components**
+
+> In this repo, introduce a small set of reusable neomorphism-inspired components under app/src/main/java/com/example/taskandtimemanager/ui (e.g., NeoCard, NeoButton, NeoToggle). Each component should simulate soft extruded surfaces using light and dark shadow colors from the theme, avoid heavy borders, and respect system dark mode where possible. Replace existing Card/Button usages on DashboardScreen, TasksScreen, CostsScreen, and SettingsScreen with these components where it makes sense, without changing the underlying behavior.
+
+**Prompt 16 – Improve readability and focus states**
+
+> In this repo, audit all text and interactive elements for readability and focus/pressed feedback. Ensure text uses a limited set of typography styles (e.g., headline, title, body, label) with sufficient contrast over the new background, and that buttons, inputs, and toggles have clear pressed/selected states (slightly stronger shadows, subtle color shifts) instead of emojis. Update OutlinedTextField and other inputs to match the neomorphism style while keeping accessibility (font size, minimum touch targets) in mind.
+
+**Prompt 17 – Simplify blocking and overlay UI**
+
+> In this repo, restyle BlockingOverlayActivity and the time-limit/mandatory overlay content to match the new neomorphism-inspired design: a single central card, concise message text, and two clear actions (e.g., "Buy more time" and "Close" or, when mandatory tasks are unfinished, only "Close"). Remove emojis from these screens, use theme colors and Neo components, and ensure the mandatory-task message is visually distinct from the normal time-limit message but still consistent with the overall UI.
+
+**Prompt 18 – Polish microcopy and navigation**
+
+> In this repo, go through all visible strings in the UI and adjust the wording for clarity and consistency. Prefer short, descriptive labels (e.g., "Tasks", "Tracked apps", "Rewards", "Export & Import"), avoid emojis in headings, and ensure error/empty states are expressed in simple sentences. Align bottom navigation/tab labels and top-level titles so the app feels coherent from a UX perspective while keeping the neomorphism-inspired visual style.
+
+---
+
+Use each prompt separately in order. After finishing Prompt 18, the project should have a cleaner, more coherent UI with a subtle neomorphism-inspired aesthetic while preserving the existing data and blocking logic.

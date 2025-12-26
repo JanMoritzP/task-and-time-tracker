@@ -200,7 +200,16 @@ fun TaskEditCard(
 fun AddTaskDialog(task: TaskDefinition?, onDismiss: () -> Unit, onAdd: (TaskDefinition) -> Unit) {
     var name by remember { mutableStateOf(task?.name ?: "") }
     var mandatory by remember { mutableStateOf(task?.mandatory ?: false) }
-    var rewardCoins by remember { mutableStateOf(task?.rewardCoins.toString()) }
+    // For new tasks, default the base reward field to "0" instead of "null".
+    var rewardCoins by remember {
+        mutableStateOf(
+            if (task == null) {
+                "0"
+            } else {
+                task.rewardCoins.toString()
+            },
+        )
+    }
     var recurringRewardCoins by remember { mutableStateOf(task?.recurringRewardCoins?.toString() ?: "") }
     var recurrenceType by remember { mutableStateOf(task?.recurrenceType ?: "DAILY") }
     var maxExecutionsPerDay by remember { mutableStateOf(task?.maxExecutionsPerDay?.toString() ?: "") }

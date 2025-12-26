@@ -63,12 +63,21 @@ class BlockingOverlayActivity : ComponentActivity() {
                     modifier = Modifier.fillMaxSize(),
                     snackbarHost = { SnackbarHost(snackbarHostState) },
                 ) { paddingValues ->
+                    val status = com.example.taskandtimemanager.data.AppBlockerStatusHolder.get()
+                    val mandatoryGateActive = status.lastTrackedAppName == "__MANDATORY_NOT_DONE__"
+
                     BlockingOverlayScreen(
                         modifier = Modifier
                             .fillMaxSize()
                             .padding(paddingValues)
                             .padding(24.dp),
                         targetAppName = targetAppName.ifEmpty { targetPackage },
+                        message = if (mandatoryGateActive) {
+                            "You need to finish all mandatory tasks before using this app."
+                        } else {
+                            "Time limit reached for $targetAppName"
+                        },
+                        showBuyMoreTime = !mandatoryGateActive,
                         onBuyMoreTime = {
                             scope.launch {
                                 val success = AppBlockerCommands.buyMoreTime(this@BlockingOverlayActivity, targetPackage, 5L)
@@ -123,6 +132,8 @@ class BlockingOverlayActivity : ComponentActivity() {
 private fun BlockingOverlayScreen(
     modifier: Modifier = Modifier,
     targetAppName: String,
+    message: String,
+    showBuyMoreTime: Boolean,
     onBuyMoreTime: () -> Unit,
     onCloseApp: () -> Unit,
 ) {
@@ -132,17 +143,19 @@ private fun BlockingOverlayScreen(
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
         Text(
-            text = "Time limit reached for $targetAppName",
+            text = message,
             style = MaterialTheme.typography.headlineSmall,
         )
 
         androidx.compose.foundation.layout.Spacer(modifier = Modifier.padding(16.dp))
 
-        Button(onClick = onBuyMoreTime, modifier = Modifier.fillMaxSize(fraction = 0.6f)) {
-            Text("Buy more time")
-        }
+        if (showBuyMoreTime) {
+            Button(onClick = onBuyMoreTime, modifier = Modifier.fillMaxSize(fraction = 0.6f)) {
+                Text("Buy more time")
+            }
 
-        androidx.compose.foundation.layout.Spacer(modifier = Modifier.padding(8.dp))
+            androidx.compose.foundation.layout.Spacer(modifier = Modifier.padding(8.dp))
+        }
 
         Button(onClick = onCloseApp, modifier = Modifier.fillMaxSize(fraction = 0.6f)) {
             Text("Close")

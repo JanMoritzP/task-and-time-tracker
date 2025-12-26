@@ -3,8 +3,10 @@ package com.example.taskandtimemanager.ui
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -26,6 +28,9 @@ import androidx.compose.ui.unit.sp
 import com.example.taskandtimemanager.data.DataStore
 import com.example.taskandtimemanager.model.TaskDefinition
 import com.example.taskandtimemanager.model.TaskExecution
+import com.example.taskandtimemanager.model.AppUsageAggregate
+import com.example.taskandtimemanager.model.AppUsagePurchase
+import com.example.taskandtimemanager.model.TrackedApp
 import java.time.LocalDate
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.launch
@@ -39,11 +44,28 @@ fun DashboardScreen(dataStore: DataStore, scope: CoroutineScope) {
     var todaysExecutions by remember { mutableStateOf(emptyList<TaskExecution>()) }
     var coinBalance by remember { mutableStateOf(0) }
 
+    // Tracked apps + usage overview for quick "buy 10 minutes" actions.
+    var trackedApps by remember { mutableStateOf(emptyList<TrackedApp>()) }
+    var todaysAggregates by remember { mutableStateOf(emptyList<AppUsageAggregate>()) }
+    var purchasesByApp by remember { mutableStateOf<Map<String, List<AppUsagePurchase>>>(emptyMap()) }
+
     LaunchedEffect(Unit) {
         val today = LocalDate.now()
         taskDefinitions = dataStore.getTaskDefinitions()
         todaysExecutions = dataStore.getExecutionsForDate(today)
+
+        // Coins are derived from all history, including app usage purchases.
         coinBalance = dataStore.getCoinBalance()
+
+        // Load tracked apps and today's usage so we can show remaining minutes on the dashboard.
+        val apps = dataStore.getTrackedApps()
+        val aggregates = dataStore.getAppUsageAggregatesForDate(today)
+        val purchases = apps.associate { app ->
+            app.id to dataStore.getAppUsagePurchases(app.id)
+        }
+        trackedApps = apps
+        todaysAggregates = aggregates
+        purchasesByApp = purchases
     }
 
     // Recompute stats derived from definitions + executions
@@ -79,6 +101,65 @@ fun DashboardScreen(dataStore: DataStore, scope: CoroutineScope) {
         verticalArrangement = Arrangement.spacedBy(16.dp),
     ) {
         Text("📊 Dashboard", fontSize = 20.sp, fontWeight = FontWeight.Bold)
+
+        // Quick info: coin balance and a compact "buy 10 minutes" section.
+        Text("Coins: $coinBalance", fontSize = 14.sp)
+
+        if (trackedApps.isNotEmpty()) {
+            Spacer(modifier = Modifier.height(8.dp))
+            Text("Quick App Time", fontSize = 14.sp, fontWeight = FontWeight.Bold)
+
+            // Show a small list of tracked apps with remaining minutes today and a fixed
+            // "Buy 10 minutes" action that uses the existing DataStore helpers.
+            LazyColumn(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(160.dp),
+            ) {
+                items(trackedApps, key = { it.id }) { app ->
+                    val appAggregates: List<AppUsageAggregate> = todaysAggregates.filter { it.appId == app.id }
+                    val minutesUsed: Long = appAggregates.sumOf { it.usedMinutesAutomatic }
+                    val appPurchases: List<AppUsagePurchase> = purchasesByApp[app.id].orEmpty()
+                    val minutesPurchased: Long = appPurchases.sumOf { it.minutesPurchased }
+                    val minutesRemaining: Long = (minutesPurchased - minutesUsed).coerceAtLeast(0)
+
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(vertical = 4.dp),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(app.name, fontSize = 13.sp, fontWeight = FontWeight.Medium)
+                            Text(
+                                text = "Remaining today: ${minutesRemaining} min",
+                                fontSize = 11.sp,
+                                color = MaterialTheme.colorScheme.secondary,
+                            )
+                        }
+                        Button(
+                            onClick = {
+                                scope.launch {
+                                    // Try to buy a fixed 10 minutes using the same semantics as the Costs screen.
+                                    val purchase = dataStore.buyAppTimeIfEnoughCoins(app.id, 10L)
+                                    if (purchase != null) {
+                                        // Refresh purchases and coin balance for the UI.
+                                        val updatedPurchases = dataStore.getAppUsagePurchases(app.id)
+                                        purchasesByApp = purchasesByApp.toMutableMap().apply {
+                                            put(app.id, updatedPurchases)
+                                        }
+                                        coinBalance = dataStore.getCoinBalance()
+                                    }
+                                }
+                            },
+                        ) {
+                            Text("+10 min")
+                        }
+                    }
+                }
+            }
+        }
 
         // Stats
         Row(

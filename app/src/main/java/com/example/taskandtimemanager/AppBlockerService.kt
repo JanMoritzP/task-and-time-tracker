@@ -158,6 +158,40 @@ class AppBlockerService : Service() {
             return
         }
 
+        // Enforce mandatory task gating: all mandatory tasks for today must be DONE
+        // before any tracked apps can be used.
+        val db = AppDatabase.getDatabase(this)
+        val mandatoryTasks = db.taskDefinitionDao().getAll().filter { it.mandatory && !it.archived }
+        val today = LocalDate.now()
+        val todaysExecutions = db.taskExecutionDao().getAll().filter { it.date == today.toString() }
+        val executionsByTaskId = todaysExecutions.groupBy { it.taskDefinitionId }
+        val allMandatoryDone = mandatoryTasks.all { def ->
+            executionsByTaskId[def.id]?.any { it.status == "DONE" } == true
+        }
+
+        if (!allMandatoryDone) {
+            Log.d(TAG, "Mandatory tasks not all completed. Blocking usage of tracked apps.")
+            AppBlockerStatusHolder.update { previous ->
+                previous.copy(
+                    lastRemainingMinutes = 0L,
+                    // Use a sentinel in lastTrackedAppName so the overlay can
+                    // distinguish between "time limit" and "mandatory tasks".
+                    lastTrackedAppName = "__MANDATORY_NOT_DONE__",
+                )
+            }
+            val overlayIntent = AppBlockerOverlayService.createStartIntent(
+                context = this@AppBlockerService,
+                targetPackage = trackedApp.packageName,
+                targetAppName = trackedApp.name,
+            )
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                startForegroundService(overlayIntent)
+            } else {
+                startService(overlayIntent)
+            }
+            return
+        }
+
         AppBlockerStatusHolder.update { previous ->
             previous.copy(
                 lastTrackedAppName = trackedApp.name,
@@ -165,7 +199,6 @@ class AppBlockerService : Service() {
         }
         Log.d(TAG, "Matched tracked app: id=${trackedApp.id}, name=${trackedApp.name}, costPerMinute=${trackedApp.costPerMinute}, purchasedMinutesTotal=${trackedApp.purchasedMinutesTotal}")
 
-        val today = LocalDate.now()
         val aggregatesToday = appUsageManager.getAppUsageAggregatesForDate(today)
         val usedMinutesAutomatic: Long = aggregatesToday
             .filter { it.appId == trackedApp.id }

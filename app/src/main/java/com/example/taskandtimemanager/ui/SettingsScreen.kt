@@ -54,6 +54,7 @@ fun SettingsScreen(
     var rewardRedemptions by remember { mutableStateOf(emptyList<RewardRedemption>()) }
     var coinBalance by remember { mutableStateOf(0) }
     var showAddRewardDialog by remember { mutableStateOf(false) }
+    var showSingleUseRewardDialog by remember { mutableStateOf(false) }
     var activeTab by remember { mutableStateOf(0) }
     var exportImportStatus by remember { mutableStateOf("") }
 
@@ -71,6 +72,23 @@ fun SettingsScreen(
                     dataStore.addRewardDefinition(reward)
                     rewardDefinitions = dataStore.getRewardDefinitions()
                     showAddRewardDialog = false
+                }
+            },
+        )
+    }
+
+    if (showSingleUseRewardDialog) {
+        SingleUseRewardDialog(
+            onDismiss = { showSingleUseRewardDialog = false },
+            onConfirm = { name, coins ->
+                scope.launch {
+                    if (coins > 0) {
+                        dataStore.grantSingleUseRewardFromSettings(name, coins)
+                        coinBalance = dataStore.getCoinBalance()
+                        // Also reflect in executions‑based history by refetching redemptions if needed
+                        rewardRedemptions = dataStore.getRewardRedemptions()
+                    }
+                    showSingleUseRewardDialog = false
                 }
             },
         )
@@ -170,6 +188,7 @@ fun SettingsScreen(
                             }
                         },
                         onAddRewardClicked = { showAddRewardDialog = true },
+                        onSingleUseRewardClicked = { showSingleUseRewardDialog = true },
                     )
 
                 1 ->
@@ -194,6 +213,7 @@ private fun RewardsTabContent(
     coinBalanceState: MutableState<Int>,
     onRedeem: (String) -> Unit,
     onAddRewardClicked: () -> Unit,
+    onSingleUseRewardClicked: () -> Unit,
 ) {
     Column(
         modifier = Modifier.fillMaxSize(),
@@ -208,8 +228,13 @@ private fun RewardsTabContent(
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 Text(text = "Coin balance: ${coinBalanceState.value}")
-                Button(onClick = onAddRewardClicked) {
-                    Text("Add reward")
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Button(onClick = onAddRewardClicked) {
+                        Text("Add reward")
+                    }
+                    Button(onClick = onSingleUseRewardClicked) {
+                        Text("Single use reward")
+                    }
                 }
             }
         }
@@ -361,6 +386,56 @@ private fun AddRewardDefinitionDialog(
                 },
             ) {
                 Text("Add")
+            }
+        },
+        dismissButton = {
+            Button(onClick = onDismiss) {
+                Text("Cancel")
+            }
+        },
+    )
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun SingleUseRewardDialog(
+    onDismiss: () -> Unit,
+    onConfirm: (String, Int) -> Unit,
+) {
+    var name by remember { mutableStateOf("") }
+    var coins by remember { mutableStateOf("") }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Single use reward") },
+        text = {
+            Column(modifier = Modifier.padding(8.dp)) {
+                OutlinedTextField(
+                    value = name,
+                    onValueChange = { name = it },
+                    label = { Text("Reward name") },
+                    modifier = Modifier.fillMaxWidth(),
+                )
+                OutlinedTextField(
+                    value = coins,
+                    onValueChange = { coins = it },
+                    label = { Text("Coins to grant") },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(top = 8.dp),
+                )
+            }
+        },
+        confirmButton = {
+            Button(
+                onClick = {
+                    val amount = coins.toIntOrNull() ?: 0
+                    if (amount > 0) {
+                        onConfirm(name, amount)
+                    }
+                },
+            ) {
+                Text("Grant")
             }
         },
         dismissButton = {

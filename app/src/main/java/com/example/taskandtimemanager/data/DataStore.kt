@@ -28,17 +28,19 @@ class DataStore(context: Context) {
     // Feature specific managers
     private val taskManager = TaskManager(db.taskDefinitionDao(), db.taskExecutionDao())
     private val rewardManager = RewardManager(db.rewardDefinitionDao(), db.rewardRedemptionDao())
-    private val appUsageManager = AppUsageManager(
-        db.trackedAppDao(),
-        db.appUsageAggregateDao(),
-        db.appUsagePurchaseDao(),
-    )
+    private val appUsageManager =
+        AppUsageManager(
+            db.trackedAppDao(),
+            db.appUsageAggregateDao(),
+            db.appUsagePurchaseDao(),
+        )
 
-    private val coinManager = CoinManager(
-        taskExecutionDao = db.taskExecutionDao(),
-        rewardRedemptionDao = db.rewardRedemptionDao(),
-        appUsagePurchaseDao = db.appUsagePurchaseDao(),
-    )
+    private val coinManager =
+        CoinManager(
+            taskExecutionDao = db.taskExecutionDao(),
+            rewardRedemptionDao = db.rewardRedemptionDao(),
+            appUsagePurchaseDao = db.appUsagePurchaseDao(),
+        )
 
     // ========= TASKS =========
 
@@ -83,6 +85,46 @@ class DataStore(context: Context) {
         return rewardManager.redeemRewardIfEnoughCoins(rewardId, balance)
     }
 
+    /**
+     * Grant coins as a one‑time configurable reward from the settings screen.
+     *
+     * This is implemented as a synthetic TaskDefinition/TaskExecution so it
+     * participates in the global coin balance calculation and history.
+     */
+    suspend fun grantSingleUseRewardFromSettings(
+        name: String,
+        coins: Int,
+    ): TaskExecution {
+        val taskId = "settings_single_use_reward"
+        val taskDefinitionDao = db.taskDefinitionDao()
+        var existing = taskDefinitionDao.getAll().find { it.id == taskId }
+        if (existing == null) {
+            existing =
+                TaskDefinition(
+                    id = taskId,
+                    name = name.ifBlank { "Settings reward" },
+                    recurrenceType = "ONE_TIME",
+                    mandatory = false,
+                    rewardCoins = coins,
+                    category = "REWARD",
+                    archived = false,
+                    maxExecutionsPerDay = null,
+                )
+            taskDefinitionDao.insert(existing)
+        }
+
+        val execution =
+            TaskExecution(
+                id = UUID.randomUUID().toString(),
+                taskDefinitionId = existing.id,
+                status = "DONE",
+                date = LocalDate.now().toString(),
+                coinsAwarded = coins,
+            )
+        db.taskExecutionDao().insert(execution)
+        return execution
+    }
+
     // ========= APPS / USAGE =========
 
     suspend fun getTrackedApps(): List<TrackedApp> = appUsageManager.getTrackedApps()
@@ -120,13 +162,14 @@ class DataStore(context: Context) {
         }
 
         val now = LocalDateTime.now()
-        val purchase = AppUsagePurchase(
-            id = UUID.randomUUID().toString(),
-            appId = appId,
-            minutesPurchased = minutesToBuy,
-            coinsSpent = coinsRequired,
-            purchaseDateTime = now.toString(),
-        )
+        val purchase =
+            AppUsagePurchase(
+                id = UUID.randomUUID().toString(),
+                appId = appId,
+                minutesPurchased = minutesToBuy,
+                coinsSpent = coinsRequired,
+                purchaseDateTime = now.toString(),
+            )
         appUsageManager.addAppUsagePurchase(purchase)
         return purchase
     }
@@ -136,63 +179,65 @@ class DataStore(context: Context) {
     suspend fun getCoinBalance(): Int = coinManager.getCoinBalance()
 
     suspend fun recalculateCoinBalance(): Int = coinManager.recalculateCoinBalance()
- 
-     // ========= EXPORT / IMPORT =========
- 
-     /**
-      * Export the complete logical state of the application as a single JSON
-      * document. The format is defined by [ExportImportState] and is stable
-      * enough for round‑trips between installs on the same or different
-      * devices.
-      */
-     suspend fun exportState(): String {
-         val state = ExportImportState(
-             taskDefinitions = db.taskDefinitionDao().getAll(),
-             taskExecutions = db.taskExecutionDao().getAll(),
-             rewardDefinitions = db.rewardDefinitionDao().getAll(),
-             rewardRedemptions = db.rewardRedemptionDao().getAll(),
-             trackedApps = db.trackedAppDao().getAll(),
-             appUsageAggregates = db.appUsageAggregateDao().getAll(),
-             appUsagePurchases = db.appUsagePurchaseDao().getAll(),
-         )
-         return Json.encodeToString(state)
-     }
- 
-     /**
-      * Import a previously exported JSON document produced by [exportState].
-      *
-      * Strategy: clear all existing data in the managed tables and then insert
-      * all records from the imported snapshot.
-      */
-     suspend fun importState(serialized: String) {
-         val json = serialized.trim()
-         if (json.isEmpty()) return
- 
-         val state = try {
-             Json.decodeFromString(ExportImportState.serializer(), json)
-         } catch (e: Exception) {
-             // Parsing failed – surface as an IllegalArgumentException so the
-             // UI can display an appropriate error message.
-             throw IllegalArgumentException("Failed to parse import data", e)
-         }
- 
-         // Clear all managed tables before inserting imported data to avoid
-         // id collisions and mixed states from previous usage.
-         db.taskExecutionDao().deleteAll()
-         db.taskDefinitionDao().deleteAll()
-         db.rewardRedemptionDao().deleteAll()
-         db.rewardDefinitionDao().deleteAll()
-         db.appUsagePurchaseDao().deleteAll()
-         db.appUsageAggregateDao().deleteAll()
-         db.trackedAppDao().deleteAll()
- 
-         // Re‑insert in dependency‑friendly order.
-         state.taskDefinitions.forEach { db.taskDefinitionDao().insert(it) }
-         state.taskExecutions.forEach { db.taskExecutionDao().insert(it) }
-         state.rewardDefinitions.forEach { db.rewardDefinitionDao().insert(it) }
-         state.rewardRedemptions.forEach { db.rewardRedemptionDao().insert(it) }
-         state.trackedApps.forEach { db.trackedAppDao().insert(it) }
-         state.appUsageAggregates.forEach { db.appUsageAggregateDao().insert(it) }
-         state.appUsagePurchases.forEach { db.appUsagePurchaseDao().insert(it) }
-     }
- }
+
+    // ========= EXPORT / IMPORT =========
+
+    /**
+     * Export the complete logical state of the application as a single JSON
+     * document. The format is defined by [ExportImportState] and is stable
+     * enough for round‑trips between installs on the same or different
+     * devices.
+     */
+    suspend fun exportState(): String {
+        val state =
+            ExportImportState(
+                taskDefinitions = db.taskDefinitionDao().getAll(),
+                taskExecutions = db.taskExecutionDao().getAll(),
+                rewardDefinitions = db.rewardDefinitionDao().getAll(),
+                rewardRedemptions = db.rewardRedemptionDao().getAll(),
+                trackedApps = db.trackedAppDao().getAll(),
+                appUsageAggregates = db.appUsageAggregateDao().getAll(),
+                appUsagePurchases = db.appUsagePurchaseDao().getAll(),
+            )
+        return Json.encodeToString(state)
+    }
+
+    /**
+     * Import a previously exported JSON document produced by [exportState].
+     *
+     * Strategy: clear all existing data in the managed tables and then insert
+     * all records from the imported snapshot.
+     */
+    suspend fun importState(serialized: String) {
+        val json = serialized.trim()
+        if (json.isEmpty()) return
+
+        val state =
+            try {
+                Json.decodeFromString(ExportImportState.serializer(), json)
+            } catch (e: Exception) {
+                // Parsing failed – surface as an IllegalArgumentException so the
+                // UI can display an appropriate error message.
+                throw IllegalArgumentException("Failed to parse import data", e)
+            }
+
+        // Clear all managed tables before inserting imported data to avoid
+        // id collisions and mixed states from previous usage.
+        db.taskExecutionDao().deleteAll()
+        db.taskDefinitionDao().deleteAll()
+        db.rewardRedemptionDao().deleteAll()
+        db.rewardDefinitionDao().deleteAll()
+        db.appUsagePurchaseDao().deleteAll()
+        db.appUsageAggregateDao().deleteAll()
+        db.trackedAppDao().deleteAll()
+
+        // Re‑insert in dependency‑friendly order.
+        state.taskDefinitions.forEach { db.taskDefinitionDao().insert(it) }
+        state.taskExecutions.forEach { db.taskExecutionDao().insert(it) }
+        state.rewardDefinitions.forEach { db.rewardDefinitionDao().insert(it) }
+        state.rewardRedemptions.forEach { db.rewardRedemptionDao().insert(it) }
+        state.trackedApps.forEach { db.trackedAppDao().insert(it) }
+        state.appUsageAggregates.forEach { db.appUsageAggregateDao().insert(it) }
+        state.appUsagePurchases.forEach { db.appUsagePurchaseDao().insert(it) }
+    }
+}

@@ -23,7 +23,7 @@ import com.example.taskandtimemanager.model.TrackedApp
         AppUsagePurchase::class,
     ],
     // Bump version after adding TaskDefinition.recurringRewardCoins
-    version = 2,
+    version = 3,
 )
 abstract class AppDatabase : RoomDatabase() {
     abstract fun taskDefinitionDao(): TaskDefinitionDao

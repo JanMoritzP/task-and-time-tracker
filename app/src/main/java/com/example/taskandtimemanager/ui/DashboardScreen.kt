@@ -223,7 +223,15 @@ fun DashboardScreen(dataStore: DataStore, scope: CoroutineScope) {
                             executionsToday = executionsByTaskId[def.id].orEmpty(),
                             onComplete = {
                                 scope.launch {
-                                    dataStore.completeTaskNow(def.id)
+                                    dataStore.completeTaskNow(def.id, skipped = false)
+                                    val today = LocalDate.now()
+                                    todaysExecutions = dataStore.getExecutionsForDate(today)
+                                    coinBalance = dataStore.getCoinBalance()
+                                }
+                            },
+                            onSkip = {
+                                scope.launch {
+                                    dataStore.completeTaskNow(def.id, skipped = true)
                                     val today = LocalDate.now()
                                     todaysExecutions = dataStore.getExecutionsForDate(today)
                                     coinBalance = dataStore.getCoinBalance()
@@ -242,6 +250,7 @@ private fun DashboardTaskCard(
     definition: TaskDefinition,
     executionsToday: List<TaskExecution>,
     onComplete: () -> Unit,
+    onSkip: () -> Unit,
 ) {
     NeoCard(
         modifier = Modifier.fillMaxWidth(),
@@ -280,9 +289,17 @@ private fun DashboardTaskCard(
                 )
 
                 val doneCountToday = executionsToday.count { it.status == "DONE" }
-                if (doneCountToday > 0) {
+                val skippedCountToday = executionsToday.count { it.status == "SKIPPED" }
+                if (doneCountToday > 0 || skippedCountToday > 0) {
+                    val statusText = buildString {
+                        if (doneCountToday > 0) append("Done: $doneCountToday")
+                        if (skippedCountToday > 0) {
+                            if (isNotEmpty()) append(" · ")
+                            append("Skipped: $skippedCountToday")
+                        }
+                    }
                     Text(
-                        text = "Done today: $doneCountToday",
+                        text = statusText,
                         fontSize = 11.sp,
                     )
                 }
@@ -290,8 +307,16 @@ private fun DashboardTaskCard(
                 Text("${definition.rewardCoins} coins", fontSize = 11.sp)
             }
 
-            Button(onClick = onComplete) {
-                Text("Complete")
+            Column(horizontalAlignment = Alignment.End) {
+                Button(onClick = onComplete) {
+                    Text("Complete")
+                }
+                if (definition.mandatory) {
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Button(onClick = onSkip) {
+                        Text("Skip")
+                    }
+                }
             }
         }
     }

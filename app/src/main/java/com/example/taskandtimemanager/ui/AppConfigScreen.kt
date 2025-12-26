@@ -37,6 +37,7 @@ import com.example.taskandtimemanager.data.AppBlockerStatusHolder
 import com.example.taskandtimemanager.data.DataStore
 import android.net.Uri
 import android.provider.Settings
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.ui.text.input.KeyboardType
 import com.example.taskandtimemanager.model.TrackedApp
@@ -164,6 +165,27 @@ fun AppConfigScreen(
                         Text(app.name, fontSize = 14.sp, fontWeight = androidx.compose.material3.LocalTextStyle.current.fontWeight)
                         Text("Package: ${app.packageName}", fontSize = 10.sp)
                         Text("Cost: ${app.costPerMinute}/min", fontSize = 10.sp)
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(top = 8.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            androidx.compose.material3.Checkbox(
+                                checked = app.nightOverrideEnabled,
+                                onCheckedChange = { enabled ->
+                                    scope.launch {
+                                        val updated = app.copy(nightOverrideEnabled = enabled)
+                                        dataStore.updateTrackedApp(updated)
+                                        apps = dataStore.getTrackedApps()
+                                    }
+                                },
+                            )
+                            Text(
+                                text = "Night override (until 06:00)",
+                                fontSize = 10.sp,
+                            )
+                        }
                     }
                 }
             }

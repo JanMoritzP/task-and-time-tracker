@@ -61,10 +61,12 @@ class DataStore(context: Context) {
     suspend fun addTaskExecution(execution: TaskExecution) = taskManager.addTaskExecution(execution)
 
     /**
-     * Convenience wrapper for creating a DONE execution for "now" using the
-     * task's configured reward coins.
+     * Convenience wrapper for creating an execution for "now" using the
+     * task's configured reward coins. When [skipped] is true, no coins are
+     * awarded and the execution is marked as SKIPPED.
      */
-    suspend fun completeTaskNow(taskId: String): TaskExecution = taskManager.completeTaskNow(taskId)
+    suspend fun completeTaskNow(taskId: String, skipped: Boolean = false): TaskExecution =
+        taskManager.completeTaskNow(taskId, skipped)
 
     // ========= REWARDS =========
 

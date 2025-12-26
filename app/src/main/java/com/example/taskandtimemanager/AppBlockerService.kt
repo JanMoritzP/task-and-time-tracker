@@ -158,6 +158,24 @@ class AppBlockerService : Service() {
             return
         }
 
+        // Night override handling: when enabled, allow usage until 06:00 local
+        // time without enforcing purchased minutes. After 06:00, automatically
+        // clear the flag on next evaluation.
+        val now = LocalDateTime.now()
+        val currentTime = now.toLocalTime()
+        val cutoff = java.time.LocalTime.of(6, 0)
+        if (trackedApp.nightOverrideEnabled) {
+            if (currentTime.isBefore(cutoff)) {
+                Log.d(TAG, "Night override enabled for ${trackedApp.packageName}; allowing usage until 06:00")
+                return
+            } else {
+                Log.d(TAG, "Night override expired for ${trackedApp.packageName}; clearing flag")
+                // Clear override flag once it's past 06:00
+                val updated = trackedApp.copy(nightOverrideEnabled = false)
+                appUsageManager.updateTrackedApp(updated)
+            }
+        }
+
         // Enforce mandatory task gating: all mandatory tasks for today must be DONE
         // before any tracked apps can be used.
         val db = AppDatabase.getDatabase(this)
@@ -166,11 +184,13 @@ class AppBlockerService : Service() {
         val todaysExecutions = db.taskExecutionDao().getAll().filter { it.date == today.toString() }
         val executionsByTaskId = todaysExecutions.groupBy { it.taskDefinitionId }
         val allMandatoryDone = mandatoryTasks.all { def ->
-            executionsByTaskId[def.id]?.any { it.status == "DONE" } == true
+            executionsByTaskId[def.id]?.any { exec ->
+                exec.status == "DONE" || exec.status == "SKIPPED"
+            } == true
         }
 
-        if (!allMandatoryDone) {
-            Log.d(TAG, "Mandatory tasks not all completed. Blocking usage of tracked apps.")
+        if (!allMandatoryDone && !trackedApp.nightOverrideEnabled) {
+            Log.d(TAG, "Mandatory tasks not all completed and no night override. Blocking usage of tracked apps.")
             AppBlockerStatusHolder.update { previous ->
                 previous.copy(
                     lastRemainingMinutes = 0L,

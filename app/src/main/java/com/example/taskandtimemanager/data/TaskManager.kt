@@ -7,7 +7,7 @@ import java.time.LocalDateTime
 import java.util.UUID
 
 /**
- * Encapsulates task‑related operations on TaskDefinition and TaskExecution.
+ * Encapsulates task-related operations on TaskDefinition and TaskExecution.
  */
 class TaskManager(
     private val taskDefinitionDao: TaskDefinitionDao,
@@ -37,12 +37,14 @@ class TaskManager(
     }
 
     /**
-     * Creates a DONE execution for the current date/time.
+     * Creates an execution for the current date/time.
      *
      * If the task defines a recurringRewardCoins value and has already been completed
      * today, subsequent completions will use recurringRewardCoins instead of rewardCoins.
+     *
+     * When [skipped] is true, status will be "SKIPPED" and no coins are awarded.
      */
-    suspend fun completeTaskNow(taskId: String): TaskExecution {
+    suspend fun completeTaskNow(taskId: String, skipped: Boolean = false): TaskExecution {
         val task = taskDefinitionDao.getAll().find { it.id == taskId }
             ?: error("TaskDefinition not found for id=$taskId")
         val now = LocalDateTime.now()
@@ -51,18 +53,22 @@ class TaskManager(
         val executionsToday = taskExecutionDao.getAll()
             .filter { it.taskDefinitionId == taskId && it.date == today && it.status == "DONE" }
 
-        val coinsForThisExecution = if (task.recurringRewardCoins != null && executionsToday.isNotEmpty()) {
+        val coinsForThisExecution = if (skipped) {
+            0
+        } else if (task.recurringRewardCoins != null && executionsToday.isNotEmpty()) {
             task.recurringRewardCoins
         } else {
             task.rewardCoins
         }
+
+        val status = if (skipped) "SKIPPED" else "DONE"
 
         val execution = TaskExecution(
             id = UUID.randomUUID().toString(),
             taskDefinitionId = taskId,
             date = today,
             time = now.toLocalTime().toString(),
-            status = "DONE",
+            status = status,
             coinsAwarded = coinsForThisExecution,
         )
         taskExecutionDao.insert(execution)

@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Task and Time Manager</string>
+    <string name="admin_description">Task and Time Manager - Controls app access based on task completion and purchased time</string>
+</resources>

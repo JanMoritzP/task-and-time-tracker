@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<device-admin xmlns:android="http://schemas.android.com/apk/res/android">
+    <uses-policies>
+        <hide-from-status-bar />
+        <force-lock />
+        <reset-password />
+        <disable-camera />
+        <disable-keyguard-features />
+    </uses-policies>
+    <description>Task and Time Manager - App Blocking Utility</description>
+</device-admin>

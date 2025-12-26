@@ -10,6 +10,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -27,6 +28,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.taskandtimemanager.data.DataStore
@@ -199,6 +201,7 @@ fun AddTaskDialog(task: TaskDefinition?, onDismiss: () -> Unit, onAdd: (TaskDefi
     var name by remember { mutableStateOf(task?.name ?: "") }
     var mandatory by remember { mutableStateOf(task?.mandatory ?: false) }
     var rewardCoins by remember { mutableStateOf(task?.rewardCoins.toString()) }
+    var recurringRewardCoins by remember { mutableStateOf(task?.recurringRewardCoins?.toString() ?: "") }
     var recurrenceType by remember { mutableStateOf(task?.recurrenceType ?: "DAILY") }
     var maxExecutionsPerDay by remember { mutableStateOf(task?.maxExecutionsPerDay?.toString() ?: "") }
 
@@ -215,22 +218,43 @@ fun AddTaskDialog(task: TaskDefinition?, onDismiss: () -> Unit, onAdd: (TaskDefi
                 TextField(
                     value = rewardCoins,
                     onValueChange = { rewardCoins = it.filter { ch -> ch.isDigit() } },
-                    label = { Text("Reward coins per completion") },
-                    singleLine = true
+                    label = { Text("Base reward coins (first completion per day)") },
+                    singleLine = true,
+                    keyboardOptions = KeyboardOptions(
+                        keyboardType = KeyboardType.Number
+                    ),
+                )
+                TextField(
+                    value = recurringRewardCoins,
+                    onValueChange = { recurringRewardCoins = it.filter { ch -> ch.isDigit() } },
+                    label = { Text("Recurring reward coins (subsequent completions, optional)") },
+                    singleLine = true,
+                    keyboardOptions = KeyboardOptions(
+                        keyboardType = KeyboardType.Number
+                    ),
                 )
                 // Simple text-based recurrence type for now to avoid heavy UI changes
-                TextField(
-                    value = recurrenceType,
-                    onValueChange = { recurrenceType = it.uppercase() },
-                    label = { Text("Recurrence (DAILY/ONE_TIME/UNLIMITED_PER_DAY/LIMITED_PER_DAY)") },
-                    singleLine = true
-                )
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    androidx.compose.material3.Checkbox(
+                        checked = recurrenceType == "UNLIMITED_PER_DAY",
+                        onCheckedChange = { checked ->
+                            recurrenceType = if (checked) "UNLIMITED_PER_DAY" else "DAILY"
+                            if (!checked) {
+                                maxExecutionsPerDay = ""
+                            }
+                        }
+                    )
+                    Text("Infinite executions per day")
+                }
                 if (recurrenceType == "LIMITED_PER_DAY") {
                     TextField(
                         value = maxExecutionsPerDay,
                         onValueChange = { maxExecutionsPerDay = it.filter { ch -> ch.isDigit() } },
                         label = { Text("Max executions per day") },
-                        singleLine = true
+                        singleLine = true,
+                        keyboardOptions = KeyboardOptions(
+                            keyboardType = androidx.compose.ui.text.input.KeyboardType.Number
+                        ),
                     )
                 }
             }
@@ -244,6 +268,7 @@ fun AddTaskDialog(task: TaskDefinition?, onDismiss: () -> Unit, onAdd: (TaskDefi
                     category = TaskCategoryDefaults.DEFAULT_TASK_CATEGORY,
                     mandatory = mandatory,
                     rewardCoins = rewardCoins.toIntOrNull() ?: 0,
+                    recurringRewardCoins = recurringRewardCoins.toIntOrNull(),
                     recurrenceType = recurrenceType,
                     maxExecutionsPerDay = maxExecutionsPerDay.toIntOrNull(),
                     archived = task?.archived ?: false,

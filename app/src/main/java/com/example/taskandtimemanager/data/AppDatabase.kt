@@ -22,7 +22,8 @@ import com.example.taskandtimemanager.model.TrackedApp
         AppUsageAggregate::class,
         AppUsagePurchase::class,
     ],
-    version = 1,
+    // Bump version after adding TaskDefinition.recurringRewardCoins
+    version = 2,
 )
 abstract class AppDatabase : RoomDatabase() {
     abstract fun taskDefinitionDao(): TaskDefinitionDao
@@ -46,6 +47,10 @@ abstract class AppDatabase : RoomDatabase() {
         fun getDatabase(context: Context): AppDatabase =
             Instance ?: synchronized(this) {
                 Room.databaseBuilder(context, AppDatabase::class.java, "taskandtimemanager.db")
+                    // Development-time behaviour: whenever the schema changes without
+                    // a proper Migration, wipe and recreate the database.
+                    // This avoids crashes like "A migration from 1 to 2 was required but not found".
+                    .fallbackToDestructiveMigration()
                     .build()
                     .also { Instance = it }
             }

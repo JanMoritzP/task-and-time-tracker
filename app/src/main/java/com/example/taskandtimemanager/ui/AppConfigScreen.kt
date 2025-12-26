@@ -37,6 +37,8 @@ import com.example.taskandtimemanager.data.AppBlockerStatusHolder
 import com.example.taskandtimemanager.data.DataStore
 import android.net.Uri
 import android.provider.Settings
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.ui.text.input.KeyboardType
 import com.example.taskandtimemanager.model.TrackedApp
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.launch
@@ -80,47 +82,6 @@ fun AppConfigScreen(
     }
 
     Column(modifier = Modifier.fillMaxSize()) {
-        // Diagnostics card so we can see what the service thinks is happening.
-        val status = remember { mutableStateOf(AppBlockerStatusHolder.get()) }
-        LaunchedEffect(Unit) {
-            // Very lightweight polling – good enough for manual debugging.
-            while (true) {
-                status.value = AppBlockerStatusHolder.get()
-                kotlinx.coroutines.delay(2000)
-            }
-        }
-
-        Card(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(16.dp),
-            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
-        ) {
-            Column(modifier = Modifier.padding(16.dp)) {
-                Text("Debug status", fontSize = 14.sp)
-                Text(
-                    text = "Usage access: " + if (status.value.hasUsageAccess) "granted" else "NOT granted",
-                    fontSize = 10.sp,
-                )
-                Text(
-                    text = "Last foreground package: " + (status.value.lastCheckedPackage ?: "-"),
-                    fontSize = 10.sp,
-                )
-                Text(
-                    text = "Last tracked app: " + (status.value.lastTrackedAppName ?: "-"),
-                    fontSize = 10.sp,
-                )
-                Text(
-                    text = "Last remaining minutes: " + (status.value.lastRemainingMinutes?.toString() ?: "-"),
-                    fontSize = 10.sp,
-                )
-                Text(
-                    text = "Last block action package: " + (status.value.lastBlockActionPackage ?: "-"),
-                    fontSize = 10.sp,
-                )
-            }
-        }
-
         if (!adminGranted) {
             Card(
                 modifier = Modifier
@@ -267,22 +228,32 @@ fun AddAppDialog(
 
                 OutlinedTextField(
                     value = costPerMinute,
-                    onValueChange = { costPerMinute = it },
-                    modifier = Modifier
-                        .padding(top = 8.dp)
-                        .fillMaxWidth(),
-                    label = { Text("Cost/min") }
-                )
-
-                OutlinedTextField(
-                    value = if (hardCapMinutes == 0L) "" else hardCapMinutes.toString(),
-                    onValueChange = { value ->
-                        hardCapMinutes = value.toLongOrNull() ?: 0L
+                    onValueChange = { input ->
+                        costPerMinute = input.filter { ch -> ch.isDigit() || ch == '.' }
                     },
                     modifier = Modifier
                         .padding(top = 8.dp)
                         .fillMaxWidth(),
-                    label = { Text("Hard cap (minutes, 0 = no cap)") }
+                    label = { Text("Cost/min") },
+                    singleLine = true,
+                    keyboardOptions = KeyboardOptions(
+                        keyboardType = KeyboardType.Number
+                    ),
+                )
+ 
+                OutlinedTextField(
+                    value = if (hardCapMinutes == 0L) "" else hardCapMinutes.toString(),
+                    onValueChange = { value ->
+                        hardCapMinutes = value.filter { ch -> ch.isDigit() }.toLongOrNull() ?: 0L
+                    },
+                    modifier = Modifier
+                        .padding(top = 8.dp)
+                        .fillMaxWidth(),
+                    label = { Text("Hard cap (minutes, 0 = no cap)") },
+                    singleLine = true,
+                    keyboardOptions = KeyboardOptions(
+                        keyboardType = androidx.compose.ui.text.input.KeyboardType.Number
+                    ),
                 )
             }
         },

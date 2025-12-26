@@ -39,6 +39,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.ComposeView
 import androidx.compose.ui.unit.dp
+import com.example.taskandtimemanager.data.DataStore
 import kotlinx.coroutines.launch
 
 /**
@@ -196,12 +197,24 @@ private fun OverlayBlockingContent(
     val scope = rememberCoroutineScope()
     val snackbarHostState = remember { SnackbarHostState() }
     var isTimeExhausted by remember { mutableStateOf(true) }
+    var hasEnoughCoinsForOneMinute by remember { mutableStateOf(false) }
 
     LaunchedEffect(Unit) {
         scope.launch {
             val status = com.example.taskandtimemanager.data.AppBlockerStatusHolder.get()
             val remaining = status.lastRemainingMinutes ?: 0L
             isTimeExhausted = remaining <= 0
+
+            // Also compute if the user has enough coins to buy at least 1 minute.
+            val dataStore = DataStore(service.applicationContext)
+            val balance = dataStore.getCoinBalance()
+            val apps = dataStore.getTrackedApps()
+            val app = apps.firstOrNull { it.packageName == targetPackage }
+            hasEnoughCoinsForOneMinute = if (app == null || app.costPerMinute <= 0f) {
+                false
+            } else {
+                balance >= app.costPerMinute.toInt()
+            }
         }
     }
 
@@ -225,24 +238,26 @@ private fun OverlayBlockingContent(
 
                 androidx.compose.foundation.layout.Spacer(modifier = Modifier.padding(16.dp))
 
-                Button(
-                    onClick = {
-                        scope.launch {
-                            val success = AppBlockerCommands.buyMoreTime(service, targetPackage)
-                            if (success) {
-                                service.stopSelf()
-                            } else {
-                                snackbarHostState.showSnackbar("Not enough coins to buy more time.")
-                                isTimeExhausted = true
+                if (hasEnoughCoinsForOneMinute) {
+                    Button(
+                        onClick = {
+                            scope.launch {
+                                val success = AppBlockerCommands.buyMoreTime(service, targetPackage, 5L)
+                                if (success) {
+                                    service.stopSelf()
+                                } else {
+                                    snackbarHostState.showSnackbar("Not enough coins to buy more time.")
+                                    isTimeExhausted = true
+                                }
                             }
-                        }
-                    },
-                    modifier = Modifier.fillMaxSize(fraction = 0.6f),
-                ) {
-                    Text("Buy more time")
-                }
+                        },
+                        modifier = Modifier.fillMaxSize(fraction = 0.6f),
+                    ) {
+                        Text("Buy more time")
+                    }
 
-                androidx.compose.foundation.layout.Spacer(modifier = Modifier.padding(8.dp))
+                    androidx.compose.foundation.layout.Spacer(modifier = Modifier.padding(8.dp))
+                }
 
                 Button(
                     onClick = {

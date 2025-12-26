@@ -10,7 +10,10 @@ data class TaskDefinition(
     val name: String,
     val category: String = "",
     val mandatory: Boolean = false,
+    /** Base reward for the first completion in a day. */
     val rewardCoins: Int = 0,
+    /** Optional alternate reward for recurring executions (e.g. infinite tasks). */
+    val recurringRewardCoins: Int? = null,
     val recurrenceType: String = "DAILY",
     val maxExecutionsPerDay: Int? = null,
     val archived: Boolean = false,

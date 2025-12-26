@@ -37,20 +37,33 @@ class TaskManager(
     }
 
     /**
-     * Creates a DONE execution for the current date/time using the rewardCoins
-     * value configured on the TaskDefinition.
+     * Creates a DONE execution for the current date/time.
+     *
+     * If the task defines a recurringRewardCoins value and has already been completed
+     * today, subsequent completions will use recurringRewardCoins instead of rewardCoins.
      */
     suspend fun completeTaskNow(taskId: String): TaskExecution {
         val task = taskDefinitionDao.getAll().find { it.id == taskId }
             ?: error("TaskDefinition not found for id=$taskId")
         val now = LocalDateTime.now()
+        val today = now.toLocalDate().toString()
+
+        val executionsToday = taskExecutionDao.getAll()
+            .filter { it.taskDefinitionId == taskId && it.date == today && it.status == "DONE" }
+
+        val coinsForThisExecution = if (task.recurringRewardCoins != null && executionsToday.isNotEmpty()) {
+            task.recurringRewardCoins
+        } else {
+            task.rewardCoins
+        }
+
         val execution = TaskExecution(
             id = UUID.randomUUID().toString(),
             taskDefinitionId = taskId,
-            date = now.toLocalDate().toString(),
+            date = today,
             time = now.toLocalTime().toString(),
             status = "DONE",
-            coinsAwarded = task.rewardCoins,
+            coinsAwarded = coinsForThisExecution,
         )
         taskExecutionDao.insert(execution)
         return execution

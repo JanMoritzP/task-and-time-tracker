@@ -71,7 +71,7 @@ class BlockingOverlayActivity : ComponentActivity() {
                         targetAppName = targetAppName.ifEmpty { targetPackage },
                         onBuyMoreTime = {
                             scope.launch {
-                                val success = AppBlockerCommands.buyMoreTime(this@BlockingOverlayActivity, targetPackage)
+                                val success = AppBlockerCommands.buyMoreTime(this@BlockingOverlayActivity, targetPackage, 5L)
                                 if (success) {
                                     finish()
                                 } else {

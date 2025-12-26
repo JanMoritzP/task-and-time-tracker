@@ -10,8 +10,10 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.Button
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
@@ -26,6 +28,7 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import com.example.taskandtimemanager.data.AppBlockerStatusHolder
 import kotlinx.coroutines.launch
@@ -49,47 +52,51 @@ class BlockingActivity : ComponentActivity() {
             val scope = rememberCoroutineScope()
             val snackbarHostState = remember { SnackbarHostState() }
 
-            var isTimeExhausted by remember { mutableStateOf(true) }
-
-            // Simple re-check using the status holder; if the remaining minutes become
-            // positive again (e.g. after background purchase), we allow dismiss.
-            LaunchedEffect(Unit) {
-                scope.launch {
-                    val status = AppBlockerStatusHolder.get()
-                    val remaining = status.lastRemainingMinutes ?: 0L
-                    isTimeExhausted = remaining <= 0
-                }
-            }
-
-            MaterialTheme(colorScheme = lightColorScheme()) {
-                Scaffold(
-                    modifier = Modifier.fillMaxSize(),
-                    snackbarHost = { SnackbarHost(snackbarHostState) },
-                ) { paddingValues ->
-                    BlockingScreenContent(
-                        modifier = Modifier
-                            .fillMaxSize()
-                            .padding(paddingValues)
-                            .padding(24.dp),
-                        targetAppName = targetAppName.ifEmpty { targetPackage },
-                        onBuyMoreTime = {
+            
+                        var isTimeExhausted by remember { mutableStateOf(true) }
+            
+                        // Simple re-check using the status holder; if the remaining minutes become
+                        // positive again (e.g. after background purchase), we allow dismiss.
+                        LaunchedEffect(Unit) {
                             scope.launch {
-                                val success = AppBlockerCommands.buyMoreTime(this@BlockingActivity, targetPackage)
-                                if (success) {
-                                    // After a successful purchase, we finish so the user
-                                    // immediately returns to the previously blocked app.
-                                    finish()
-                                } else {
-                                    snackbarHostState.showSnackbar("Not enough coins to buy more time.")
-                                    isTimeExhausted = true
-                                }
+                                val status = AppBlockerStatusHolder.get()
+                                val remaining = status.lastRemainingMinutes ?: 0L
+                                isTimeExhausted = remaining <= 0
                             }
-                        },
-                        onCloseApp = {
-                            navigateHomeAndFinish()
-                        },
-                    )
-
+                        }
+            
+                        MaterialTheme(colorScheme = lightColorScheme()) {
+                            Scaffold(
+                                modifier = Modifier.fillMaxSize(),
+                                snackbarHost = { SnackbarHost(snackbarHostState) },
+                            ) { paddingValues ->
+                                BlockingScreenContent(
+                                    modifier = Modifier
+                                        .fillMaxSize()
+                                        .padding(paddingValues)
+                                        .padding(24.dp),
+                                    targetAppName = targetAppName.ifEmpty { targetPackage },
+                                    onBuyMoreTime = { minutesToBuy ->
+                                        scope.launch {
+                                            val success = AppBlockerCommands.buyMoreTime(
+                                                context = this@BlockingActivity,
+                                                targetPackage = targetPackage,
+                                                minutesToBuy = minutesToBuy,
+                                            )
+                                            if (success) {
+                                                // After a successful purchase, we finish so the user
+                                                // immediately returns to the previously blocked app.
+                                                finish()
+                                            } else {
+                                                snackbarHostState.showSnackbar("Not enough coins to buy more time.")
+                                                isTimeExhausted = true
+                                            }
+                                        }
+                                    },
+                                    onCloseApp = {
+                                        navigateHomeAndFinish()
+                                    },
+                                )
                     // Disable back if time is still exhausted.
                     BackHandler(enabled = isTimeExhausted) {
                         // Swallow back presses while exhausted.
@@ -126,9 +133,11 @@ class BlockingActivity : ComponentActivity() {
 private fun BlockingScreenContent(
     modifier: Modifier = Modifier,
     targetAppName: String,
-    onBuyMoreTime: () -> Unit,
+    onBuyMoreTime: (minutesToBuy: Long) -> Unit,
     onCloseApp: () -> Unit,
 ) {
+    var minutesInput by remember { mutableStateOf("") }
+
     Column(
         modifier = modifier,
         verticalArrangement = Arrangement.Center,
@@ -141,7 +150,27 @@ private fun BlockingScreenContent(
 
         androidx.compose.foundation.layout.Spacer(modifier = Modifier.padding(16.dp))
 
-        Button(onClick = onBuyMoreTime, modifier = Modifier.fillMaxSize(fraction = 0.6f)) {
+        OutlinedTextField(
+            value = minutesInput,
+            onValueChange = { value ->
+                minutesInput = value.filter { ch -> ch.isDigit() }
+            },
+            label = { Text("Minutes to buy") },
+            singleLine = true,
+            keyboardOptions = KeyboardOptions(
+                keyboardType = KeyboardType.Number,
+            ),
+        )
+
+        androidx.compose.foundation.layout.Spacer(modifier = Modifier.padding(8.dp))
+
+        Button(
+            onClick = {
+                val minutesToBuy = minutesInput.toLongOrNull() ?: 0L
+                onBuyMoreTime(minutesToBuy)
+            },
+            modifier = Modifier.fillMaxSize(fraction = 0.6f),
+        ) {
             Text("Buy more time")
         }
 
@@ -159,8 +188,6 @@ private fun BlockingScreenContent(
  */
 object AppBlockerCommands {
 
-    private const val DEFAULT_MINUTES_TO_BUY = 10L
-
     /**
      * Launches [BlockingActivity] for the given package/app name.
      */
@@ -170,10 +197,12 @@ object AppBlockerCommands {
     }
 
     /**
-     * Tries to buy a fixed amount of minutes for the given package using the
+     * Tries to buy a custom amount of minutes for the given package using the
      * same purchase logic as [AppBlockerService]. Returns true on success.
      */
-    suspend fun buyMoreTime(context: Context, targetPackage: String): Boolean {
+    suspend fun buyMoreTime(context: Context, targetPackage: String, minutesToBuy: Long): Boolean {
+        if (minutesToBuy <= 0L) return false
+
         val db = com.example.taskandtimemanager.data.AppDatabase.getDatabase(context)
         val appUsageManager = com.example.taskandtimemanager.data.AppUsageManager(
             trackedAppDao = db.trackedAppDao(),
@@ -189,7 +218,6 @@ object AppBlockerCommands {
         val trackedApps = appUsageManager.getTrackedApps()
         val app = trackedApps.firstOrNull { it.packageName == targetPackage } ?: return false
 
-        val minutesToBuy = DEFAULT_MINUTES_TO_BUY
         val coinsRequired = (app.costPerMinute * minutesToBuy).toInt()
         val currentBalance = coinManager.getCoinBalance()
 

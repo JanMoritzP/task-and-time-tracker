@@ -16,14 +16,12 @@ import android.os.IBinder
 import android.os.Looper
 import android.provider.Settings
 import android.util.Log
-import android.view.WindowManager
-import android.app.AlertDialog
-import android.net.Uri
 import com.example.taskandtimemanager.data.AppBlockerStatusHolder
 import com.example.taskandtimemanager.data.AppDatabase
 import com.example.taskandtimemanager.data.AppUsageManager
 import com.example.taskandtimemanager.data.CoinManager
 import com.example.taskandtimemanager.data.TrackedAppDao
+import com.example.taskandtimemanager.data.UsageTracker
 import java.time.LocalDate
 import java.time.LocalDateTime
 import java.util.UUID
@@ -55,6 +53,7 @@ class AppBlockerService : Service() {
     private lateinit var appUsageManager: AppUsageManager
     private lateinit var coinManager: CoinManager
     private lateinit var trackedAppDao: TrackedAppDao
+    private lateinit var usageTracker: UsageTracker
 
     // System services
     private lateinit var usageStatsManager: UsageStatsManager
@@ -74,13 +73,20 @@ class AppBlockerService : Service() {
             appUsageAggregateDao = db.appUsageAggregateDao(),
             appUsagePurchaseDao = db.appUsagePurchaseDao(),
         )
+        usageStatsManager = getSystemService(Context.USAGE_STATS_SERVICE) as UsageStatsManager
+        usageTracker = UsageTracker(
+            context = this,
+            usageStatsManager = usageStatsManager,
+            trackedAppDao = trackedAppDao,
+            appUsageAggregateDao = db.appUsageAggregateDao(),
+        )
+        usageTracker.startAutomaticUpdates(intervalMinutes = 1L)
         coinManager = CoinManager(
             taskExecutionDao = db.taskExecutionDao(),
             rewardRedemptionDao = db.rewardRedemptionDao(),
             appUsagePurchaseDao = db.appUsagePurchaseDao(),
         )
 
-        usageStatsManager = getSystemService(Context.USAGE_STATS_SERVICE) as UsageStatsManager
         devicePolicyManager = getSystemService(Context.DEVICE_POLICY_SERVICE) as DevicePolicyManager
         adminComponent = ComponentName(this, AdminReceiver::class.java)
 
@@ -199,7 +205,7 @@ class AppBlockerService : Service() {
          }
  
          Log.d(TAG, "No remaining time. Starting overlay for $packageName")
- 
+
          // Start the full-screen overlay service which shows the blocking UI on top of the app.
          val overlayIntent = AppBlockerOverlayService.createStartIntent(
              context = this@AppBlockerService,

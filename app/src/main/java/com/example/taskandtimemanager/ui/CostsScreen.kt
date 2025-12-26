@@ -3,11 +3,13 @@ package com.example.taskandtimemanager.ui
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.taskandtimemanager.data.DataStore
@@ -94,10 +96,15 @@ fun CostsScreen(
                         ) {
                             OutlinedTextField(
                                 value = costPerMinuteInput,
-                                onValueChange = { costPerMinuteInput = it },
+                                onValueChange = { input ->
+                                    costPerMinuteInput = input.filter { ch -> ch.isDigit() || ch == '.' }
+                                },
                                 label = { Text("coins/min") },
                                 modifier = Modifier.weight(1f),
                                 singleLine = true,
+                                keyboardOptions = KeyboardOptions(
+                                    keyboardType = KeyboardType.Number
+                                ),
                             )
                             Button(onClick = {
                                 scope.launch {
@@ -115,21 +122,6 @@ fun CostsScreen(
 
                         Button(onClick = { showBuyDialog = true }) {
                             Text("Buy Time")
-                        }
-
-                        // Debug / entry point: allow manually opening the blocking overlay
-                        // for this app to verify the UI even when time is not yet exhausted.
-                        Spacer(modifier = Modifier.height(8.dp))
-                        val context = LocalContext.current
-                        OutlinedButton(onClick = {
-                            // Use the shared helper to launch the overlay.
-                            AppBlockerCommands.showBlockingOverlay(
-                                context = context,
-                                targetPackage = app.packageName,
-                                targetAppName = app.name,
-                            )
-                        }) {
-                            Text("Show Blocking Overlay for Debug")
                         }
 
                         if (showBuyDialog) {
@@ -180,9 +172,14 @@ private fun BuyTimeDialog(
                 Text("Cost per minute: ${app.costPerMinute} coins")
                 OutlinedTextField(
                     value = minutesInput,
-                    onValueChange = { minutesInput = it },
+                    onValueChange = { input ->
+                        minutesInput = input.filter { ch -> ch.isDigit() }
+                    },
                     label = { Text("Minutes to buy") },
                     singleLine = true,
+                    keyboardOptions = KeyboardOptions(
+                        keyboardType = androidx.compose.ui.text.input.KeyboardType.Number
+                    ),
                 )
             }
         },

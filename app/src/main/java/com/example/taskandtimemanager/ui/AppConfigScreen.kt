@@ -90,7 +90,11 @@ fun AppConfigScreen(
                 colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.errorContainer)
             ) {
                 Column(modifier = Modifier.padding(16.dp)) {
-                    Text("⚠️ Admin Access Required", fontSize = 14.sp)
+                    Text(
+                        text = "Admin access required",
+                        style = MaterialTheme.typography.titleSmall,
+                        color = MaterialTheme.colorScheme.onErrorContainer,
+                    )
                     Button(
                         onClick = {
                             val adminComponent = ComponentName(context, AdminReceiver::class.java)

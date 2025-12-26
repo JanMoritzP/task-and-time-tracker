@@ -7,16 +7,22 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.setContent
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
-import androidx.compose.material3.Button
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.material3.lightColorScheme
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
+import com.example.taskandtimemanager.ui.NeoButton
+import com.example.taskandtimemanager.ui.NeoCard
+import com.example.taskandtimemanager.ui.theme.TaskAndTimeManagerTheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -58,7 +64,7 @@ class BlockingOverlayActivity : ComponentActivity() {
                 }
             }
 
-            MaterialTheme(colorScheme = lightColorScheme()) {
+            TaskAndTimeManagerTheme {
                 Scaffold(
                     modifier = Modifier.fillMaxSize(),
                     snackbarHost = { SnackbarHost(snackbarHostState) },
@@ -137,28 +143,63 @@ private fun BlockingOverlayScreen(
     onBuyMoreTime: () -> Unit,
     onCloseApp: () -> Unit,
 ) {
-    Column(
+    val colors = MaterialTheme.colorScheme
+    val isMandatory = !showBuyMoreTime
+
+    Box(
         modifier = modifier,
-        verticalArrangement = Arrangement.Center,
-        horizontalAlignment = Alignment.CenterHorizontally,
+        contentAlignment = Alignment.Center,
     ) {
-        Text(
-            text = message,
-            style = MaterialTheme.typography.headlineSmall,
-        )
+        NeoCard(
+            modifier = Modifier
+                .fillMaxSize(fraction = 0.9f),
+            innerPadding = androidx.compose.foundation.layout.PaddingValues(24.dp),
+        ) {
+            Column(
+                verticalArrangement = Arrangement.Center,
+                horizontalAlignment = Alignment.CenterHorizontally,
+                modifier = Modifier.fillMaxSize(),
+            ) {
+                Text(
+                    text = if (isMandatory) "Mandatory tasks pending" else "Time limit reached",
+                    style = MaterialTheme.typography.headlineSmall,
+                    fontWeight = FontWeight.SemiBold,
+                    color = if (isMandatory) colors.error else colors.onSurface,
+                    textAlign = TextAlign.Center,
+                )
 
-        androidx.compose.foundation.layout.Spacer(modifier = Modifier.padding(16.dp))
+                Spacer(modifier = Modifier.padding(8.dp))
 
-        if (showBuyMoreTime) {
-            Button(onClick = onBuyMoreTime, modifier = Modifier.fillMaxSize(fraction = 0.6f)) {
-                Text("Buy more time")
+                Text(
+                    text = message,
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = if (isMandatory) colors.error.copy(alpha = 0.9f) else colors.onSurfaceVariant,
+                    textAlign = TextAlign.Center,
+                )
+
+                Spacer(modifier = Modifier.padding(24.dp))
+
+                Column(
+                    verticalArrangement = Arrangement.spacedBy(12.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                ) {
+                    if (showBuyMoreTime) {
+                        NeoButton(
+                            onClick = onBuyMoreTime,
+                            modifier = Modifier.fillMaxSize(fraction = 0.7f),
+                        ) {
+                            Text("Buy more time")
+                        }
+                    }
+
+                    NeoButton(
+                        onClick = onCloseApp,
+                        modifier = Modifier.fillMaxSize(fraction = 0.7f),
+                    ) {
+                        Text("Close")
+                    }
+                }
             }
-
-            androidx.compose.foundation.layout.Spacer(modifier = Modifier.padding(8.dp))
-        }
-
-        Button(onClick = onCloseApp, modifier = Modifier.fillMaxSize(fraction = 0.6f)) {
-            Text("Close")
         }
     }
 }

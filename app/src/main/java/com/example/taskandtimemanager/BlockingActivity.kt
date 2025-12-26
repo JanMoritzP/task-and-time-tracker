@@ -7,11 +7,12 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.setContent
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.text.KeyboardOptions
-import androidx.compose.material3.Button
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
@@ -19,6 +20,11 @@ import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.material3.lightColorScheme
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
+import com.example.taskandtimemanager.ui.NeoButton
+import com.example.taskandtimemanager.ui.NeoCard
+import com.example.taskandtimemanager.ui.theme.TaskAndTimeManagerTheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -65,7 +71,7 @@ class BlockingActivity : ComponentActivity() {
                             }
                         }
             
-                        MaterialTheme(colorScheme = lightColorScheme()) {
+                        TaskAndTimeManagerTheme {
                             Scaffold(
                                 modifier = Modifier.fillMaxSize(),
                                 snackbarHost = { SnackbarHost(snackbarHostState) },
@@ -138,46 +144,73 @@ private fun BlockingScreenContent(
 ) {
     var minutesInput by remember { mutableStateOf("") }
 
-    Column(
+    Box(
         modifier = modifier,
-        verticalArrangement = Arrangement.Center,
-        horizontalAlignment = Alignment.CenterHorizontally,
+        contentAlignment = Alignment.Center,
     ) {
-        Text(
-            text = "Time limit reached for $targetAppName",
-            style = MaterialTheme.typography.headlineSmall,
-        )
-
-        androidx.compose.foundation.layout.Spacer(modifier = Modifier.padding(16.dp))
-
-        OutlinedTextField(
-            value = minutesInput,
-            onValueChange = { value ->
-                minutesInput = value.filter { ch -> ch.isDigit() }
-            },
-            label = { Text("Minutes to buy") },
-            singleLine = true,
-            keyboardOptions = KeyboardOptions(
-                keyboardType = KeyboardType.Number,
-            ),
-        )
-
-        androidx.compose.foundation.layout.Spacer(modifier = Modifier.padding(8.dp))
-
-        Button(
-            onClick = {
-                val minutesToBuy = minutesInput.toLongOrNull() ?: 0L
-                onBuyMoreTime(minutesToBuy)
-            },
-            modifier = Modifier.fillMaxSize(fraction = 0.6f),
+        NeoCard(
+            modifier = Modifier
+                .fillMaxSize(fraction = 0.9f),
+            innerPadding = androidx.compose.foundation.layout.PaddingValues(24.dp),
         ) {
-            Text("Buy more time")
-        }
+            Column(
+                verticalArrangement = Arrangement.Center,
+                horizontalAlignment = Alignment.CenterHorizontally,
+                modifier = Modifier.fillMaxSize(),
+            ) {
+                Text(
+                    text = "Time limit reached",
+                    style = MaterialTheme.typography.headlineSmall,
+                    fontWeight = FontWeight.SemiBold,
+                    textAlign = TextAlign.Center,
+                )
 
-        androidx.compose.foundation.layout.Spacer(modifier = Modifier.padding(8.dp))
+                Spacer(modifier = Modifier.padding(8.dp))
 
-        Button(onClick = onCloseApp, modifier = Modifier.fillMaxSize(fraction = 0.6f)) {
-            Text("Close")
+                Text(
+                    text = "You have reached your limit for $targetAppName.",
+                    style = MaterialTheme.typography.bodyMedium,
+                    textAlign = TextAlign.Center,
+                )
+
+                Spacer(modifier = Modifier.padding(16.dp))
+
+                OutlinedTextField(
+                    value = minutesInput,
+                    onValueChange = { value ->
+                        minutesInput = value.filter { ch -> ch.isDigit() }
+                    },
+                    label = { Text("Minutes to buy") },
+                    singleLine = true,
+                    keyboardOptions = KeyboardOptions(
+                        keyboardType = KeyboardType.Number,
+                    ),
+                )
+
+                Spacer(modifier = Modifier.padding(16.dp))
+
+                Column(
+                    verticalArrangement = Arrangement.spacedBy(12.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                ) {
+                    NeoButton(
+                        onClick = {
+                            val minutesToBuy = minutesInput.toLongOrNull() ?: 0L
+                            onBuyMoreTime(minutesToBuy)
+                        },
+                        modifier = Modifier.fillMaxSize(fraction = 0.7f),
+                    ) {
+                        Text("Buy more time")
+                    }
+
+                    NeoButton(
+                        onClick = onCloseApp,
+                        modifier = Modifier.fillMaxSize(fraction = 0.7f),
+                    ) {
+                        Text("Close")
+                    }
+                }
+            }
         }
     }
 }

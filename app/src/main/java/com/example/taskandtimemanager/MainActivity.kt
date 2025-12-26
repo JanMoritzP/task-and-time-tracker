@@ -64,32 +64,32 @@ class MainActivity : ComponentActivity() {
                             NavigationBarItem(
                                 selected = selectedTab == 0,
                                 onClick = { selectedTab = 0 },
-                                label = { Text("Dashboard") },
-                                icon = { Text("📊") }
+                                label = { Text("Today") },
+                                icon = { }
                             )
                             NavigationBarItem(
                                 selected = selectedTab == 1,
                                 onClick = { selectedTab = 1 },
                                 label = { Text("Tasks") },
-                                icon = { Text("📋") }
+                                icon = { }
                             )
                             NavigationBarItem(
                                 selected = selectedTab == 2,
                                 onClick = { selectedTab = 2 },
-                                label = { Text("Costs") },
-                                icon = { Text("⚙️") }
+                                label = { Text("Apps") },
+                                icon = { }
                             )
                             NavigationBarItem(
                                 selected = selectedTab == 3,
                                 onClick = { selectedTab = 3 },
-                                label = { Text("App Blocker") },
-                                icon = { Text("🚫") }
+                                label = { Text("App limits") },
+                                icon = { }
                             )
                             NavigationBarItem(
                                 selected = selectedTab == 4,
                                 onClick = { selectedTab = 4 },
-                                label = { Text("Settings") },
-                                icon = { Text("⚙️") }
+                                label = { Text("Rewards & data") },
+                                icon = { }
                             )
                         }
                     }

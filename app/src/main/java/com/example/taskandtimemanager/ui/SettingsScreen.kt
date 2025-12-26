@@ -14,9 +14,12 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
+import com.example.taskandtimemanager.ui.NeoButton
+import com.example.taskandtimemanager.ui.NeoCard
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.LocalTextStyle
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Tab
 import androidx.compose.material3.TabRow
 import androidx.compose.material3.Text
@@ -34,12 +37,12 @@ import androidx.compose.ui.unit.sp
 import com.example.taskandtimemanager.data.DataStore
 import com.example.taskandtimemanager.model.RewardDefinition
 import com.example.taskandtimemanager.model.RewardRedemption
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.launch
 import java.io.BufferedReader
 import java.io.InputStreamReader
 import java.io.OutputStreamWriter
 import java.util.UUID
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.launch
 
 @Composable
 fun SettingsScreen(
@@ -73,95 +76,113 @@ fun SettingsScreen(
         )
     }
 
-    val exportLauncher = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.CreateDocument("application/json"),
-    ) { uri ->
-        if (uri != null) {
-            scope.launch {
-                runCatching {
-                    val json = dataStore.exportState()
-                    context.contentResolver.openOutputStream(uri)?.use { outputStream ->
-                        OutputStreamWriter(outputStream).use { writer ->
-                            writer.write(json)
-                            writer.flush()
-                        }
-                    } ?: error("Unable to open output stream")
-                }.onSuccess {
-                    exportImportStatus = "Export successful"
-                }.onFailure { e ->
-                    exportImportStatus = "Export failed: ${e.message}"
-                }
-            }
-        }
-    }
-
-    val importLauncher = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.OpenDocument(),
-    ) { uri ->
-        if (uri != null) {
-            scope.launch {
-                runCatching {
-                    context.contentResolver.openInputStream(uri)?.use { inputStream ->
-                        BufferedReader(InputStreamReader(inputStream)).use { reader ->
-                            val content = reader.readText()
-                            dataStore.importState(content)
-                        }
-                    } ?: error("Unable to open input stream")
-                }.onSuccess {
-                    exportImportStatus = "Import successful"
-                    rewardDefinitions = dataStore.getRewardDefinitions()
-                    rewardRedemptions = dataStore.getRewardRedemptions()
-                    coinBalance = dataStore.getCoinBalance()
-                }.onFailure { e ->
-                    exportImportStatus = "Import failed: ${e.message}"
-                }
-            }
-        }
-    }
-
-    Column(modifier = Modifier.fillMaxSize()) {
-        TabRow(selectedTabIndex = activeTab, modifier = Modifier.fillMaxWidth()) {
-            Tab(
-                selected = activeTab == 0,
-                onClick = { activeTab = 0 },
-                text = { Text("Rewards") },
-            )
-            Tab(
-                selected = activeTab == 1,
-                onClick = { activeTab = 1 },
-                text = { Text("Export / Import") },
-            )
-            Tab(
-                selected = activeTab == 2,
-                onClick = { activeTab = 2 },
-                text = { Text("App Blocking") },
-            )
-        }
-
-        when (activeTab) {
-            0 -> RewardsTabContent(
-                rewardDefinitions = rewardDefinitions,
-                rewardRedemptions = rewardRedemptions,
-                coinBalanceState = mutableStateOf(coinBalance),
-                onRedeem = { rewardId ->
-                    scope.launch {
-                        val redemption = dataStore.redeemReward(rewardId)
-                        if (redemption != null) {
-                            rewardRedemptions = dataStore.getRewardRedemptions()
-                            coinBalance = dataStore.getCoinBalance()
-                        }
+    val exportLauncher =
+        rememberLauncherForActivityResult(
+            contract = ActivityResultContracts.CreateDocument("application/json"),
+        ) { uri ->
+            if (uri != null) {
+                scope.launch {
+                    runCatching {
+                        val json = dataStore.exportState()
+                        context.contentResolver.openOutputStream(uri)?.use { outputStream ->
+                            OutputStreamWriter(outputStream).use { writer ->
+                                writer.write(json)
+                                writer.flush()
+                            }
+                        } ?: error("Unable to open output stream")
+                    }.onSuccess {
+                        exportImportStatus = "Export successful"
+                    }.onFailure { e ->
+                        exportImportStatus = "Export failed: ${e.message}"
                     }
-                },
-                onAddRewardClicked = { showAddRewardDialog = true },
-            )
+                }
+            }
+        }
 
-            1 -> ExportImportTabContent(
-                onExportClick = { exportLauncher.launch("task_time_manager_export.json") },
-                onImportClick = { importLauncher.launch(arrayOf("application/json")) },
-                statusText = exportImportStatus,
-            )
+    val importLauncher =
+        rememberLauncherForActivityResult(
+            contract = ActivityResultContracts.OpenDocument(),
+        ) { uri ->
+            if (uri != null) {
+                scope.launch {
+                    runCatching {
+                        context.contentResolver.openInputStream(uri)?.use { inputStream ->
+                            BufferedReader(InputStreamReader(inputStream)).use { reader ->
+                                val content = reader.readText()
+                                dataStore.importState(content)
+                            }
+                        } ?: error("Unable to open input stream")
+                    }.onSuccess {
+                        exportImportStatus = "Import successful"
+                        rewardDefinitions = dataStore.getRewardDefinitions()
+                        rewardRedemptions = dataStore.getRewardRedemptions()
+                        coinBalance = dataStore.getCoinBalance()
+                    }.onFailure { e ->
+                        exportImportStatus = "Import failed: ${e.message}"
+                    }
+                }
+            }
+        }
 
-            2 -> AppBlockingSettingsTab()
+    Surface(modifier = Modifier.fillMaxSize()) {
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(horizontal = 16.dp, vertical = 24.dp),
+            verticalArrangement = Arrangement.spacedBy(16.dp),
+        ) {
+            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                Text(text = "Settings", fontSize = 20.sp)
+                Text(text = "Rewards, data export, and app blocking", fontSize = 12.sp)
+            }
+
+            TabRow(selectedTabIndex = activeTab, modifier = Modifier.fillMaxWidth()) {
+                Tab(
+                    selected = activeTab == 0,
+                    onClick = { activeTab = 0 },
+                    text = { Text("Rewards") },
+                )
+                Tab(
+                    selected = activeTab == 1,
+                    onClick = { activeTab = 1 },
+                    text = { Text("Export / Import") },
+                )
+                Tab(
+                    selected = activeTab == 2,
+                    onClick = { activeTab = 2 },
+                    text = { Text("App blocking") },
+                )
+            }
+
+            when (activeTab) {
+                0 ->
+                    RewardsTabContent(
+                        rewardDefinitions = rewardDefinitions,
+                        rewardRedemptions = rewardRedemptions,
+                        coinBalanceState = remember { mutableStateOf(coinBalance) },
+                        onRedeem = { rewardId ->
+                            scope.launch {
+                                val redemption = dataStore.redeemReward(rewardId)
+                                if (redemption != null) {
+                                    rewardRedemptions = dataStore.getRewardRedemptions()
+                                    coinBalance = dataStore.getCoinBalance()
+                                }
+                            }
+                        },
+                        onAddRewardClicked = { showAddRewardDialog = true },
+                    )
+
+                1 ->
+                    ExportImportTabContent(
+                        onExportClick = {
+                            exportLauncher.launch("task_time_manager_export.json")
+                        },
+                        onImportClick = { importLauncher.launch(arrayOf("application/json")) },
+                        statusText = exportImportStatus,
+                    )
+
+                2 -> AppBlockingSettingsTab()
+            }
         }
     }
 }
@@ -175,39 +196,59 @@ private fun RewardsTabContent(
     onAddRewardClicked: () -> Unit,
 ) {
     Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .padding(16.dp),
+        modifier = Modifier.fillMaxSize(),
         verticalArrangement = Arrangement.spacedBy(16.dp),
     ) {
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Text(text = "Coin balance: ${coinBalanceState.value}", fontSize = 14.sp)
-            Button(onClick = onAddRewardClicked) {
-                Text("➕ Add Reward")
+        NeoCard(modifier = Modifier.fillMaxWidth()) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(16.dp),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Text(text = "Coin balance: ${coinBalanceState.value}")
+                Button(onClick = onAddRewardClicked) {
+                    Text("Add reward")
+                }
             }
         }
 
-        Text(text = "Available", fontSize = 14.sp)
-        LazyColumn(modifier = Modifier.fillMaxWidth()) {
-            items(rewardDefinitions.filter { !it.archived }) { reward ->
-                RewardDefinitionItem(
-                    reward = reward,
-                    onRedeem = { onRedeem(reward.id) },
-                )
+        NeoCard(modifier = Modifier.fillMaxWidth()) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(16.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                Text(text = "Available", fontSize = 14.sp)
+                LazyColumn(modifier = Modifier.fillMaxWidth()) {
+                    items(rewardDefinitions.filter { !it.archived }) { reward ->
+                        RewardDefinitionItem(
+                            reward = reward,
+                            onRedeem = { onRedeem(reward.id) },
+                        )
+                    }
+                }
             }
         }
 
-        Text(text = "History", fontSize = 14.sp, modifier = Modifier.padding(top = 16.dp))
-        LazyColumn(modifier = Modifier.fillMaxWidth()) {
-            items(rewardRedemptions) { redemption ->
-                RewardRedemptionItem(
-                    redemption = redemption,
-                    rewardDefinitions = rewardDefinitions,
-                )
+        NeoCard(modifier = Modifier.fillMaxWidth()) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(16.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                Text(text = "History", fontSize = 14.sp)
+                LazyColumn(modifier = Modifier.fillMaxWidth()) {
+                    items(rewardRedemptions) { redemption ->
+                        RewardRedemptionItem(
+                            redemption = redemption,
+                            rewardDefinitions = rewardDefinitions,
+                        )
+                    }
+                }
             }
         }
     }
@@ -218,10 +259,10 @@ private fun RewardDefinitionItem(
     reward: RewardDefinition,
     onRedeem: () -> Unit,
 ) {
-    Card(
+    NeoCard(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(8.dp),
+            .padding(vertical = 8.dp),
     ) {
         Row(
             modifier = Modifier
@@ -247,13 +288,14 @@ private fun RewardRedemptionItem(
     redemption: RewardRedemption,
     rewardDefinitions: List<RewardDefinition>,
 ) {
-    val rewardName = rewardDefinitions.find { it.id == redemption.rewardDefinitionId }?.name
-        ?: "Unknown reward"
+    val rewardName =
+        rewardDefinitions.find { it.id == redemption.rewardDefinitionId }?.name
+            ?: "Unknown reward"
 
-    Card(
+    NeoCard(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(8.dp),
+            .padding(vertical = 8.dp),
     ) {
         Column(modifier = Modifier.padding(12.dp)) {
             Text(rewardName, fontSize = 12.sp)
@@ -275,13 +317,13 @@ private fun AddRewardDefinitionDialog(
 
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("Add Reward") },
+        title = { Text("Add reward") },
         text = {
             Column(modifier = Modifier.padding(8.dp)) {
                 OutlinedTextField(
                     value = name,
                     onValueChange = { name = it },
-                    label = { Text("Reward Name") },
+                    label = { Text("Reward name") },
                     modifier = Modifier.fillMaxWidth(),
                 )
                 OutlinedTextField(
@@ -295,7 +337,7 @@ private fun AddRewardDefinitionDialog(
                 OutlinedTextField(
                     value = coinCost,
                     onValueChange = { coinCost = it },
-                    label = { Text("Coin Cost") },
+                    label = { Text("Coin cost") },
                     modifier = Modifier
                         .fillMaxWidth()
                         .padding(top = 8.dp),
@@ -303,18 +345,21 @@ private fun AddRewardDefinitionDialog(
             }
         },
         confirmButton = {
-            Button(onClick = {
-                val cost = coinCost.toIntOrNull() ?: 0
-                if (name.isNotBlank() && cost > 0) {
-                    val reward = RewardDefinition(
-                        id = UUID.randomUUID().toString(),
-                        name = name,
-                        description = description,
-                        coinCost = cost,
-                    )
-                    onAdd(reward)
-                }
-            }) {
+            Button(
+                onClick = {
+                    val cost = coinCost.toIntOrNull() ?: 0
+                    if (name.isNotBlank() && cost > 0) {
+                        val reward =
+                            RewardDefinition(
+                                id = UUID.randomUUID().toString(),
+                                name = name,
+                                description = description,
+                                coinCost = cost,
+                            )
+                        onAdd(reward)
+                    }
+                },
+            ) {
                 Text("Add")
             }
         },
@@ -333,29 +378,35 @@ private fun ExportImportTabContent(
     statusText: String,
 ) {
     Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .padding(16.dp),
+        modifier = Modifier.fillMaxSize(),
         verticalArrangement = Arrangement.spacedBy(16.dp),
     ) {
-        Button(
-            onClick = onExportClick,
-            modifier = Modifier.fillMaxWidth(),
-        ) {
-            Text("📤 Export Data")
-        }
-        Button(
-            onClick = onImportClick,
-            modifier = Modifier.fillMaxWidth(),
-        ) {
-            Text("📥 Import Data")
-        }
-        if (statusText.isNotBlank()) {
-            Text(
-                text = statusText,
-                fontSize = 12.sp,
-                modifier = Modifier.padding(top = 8.dp),
-            )
+        NeoCard(modifier = Modifier.fillMaxWidth()) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(16.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                Button(
+                    onClick = onExportClick,
+                    modifier = Modifier.fillMaxWidth(),
+                ) {
+                    Text("Export data")
+                }
+                Button(
+                    onClick = onImportClick,
+                    modifier = Modifier.fillMaxWidth(),
+                ) {
+                    Text("Import data")
+                }
+                if (statusText.isNotBlank()) {
+                    Text(
+                        text = statusText,
+                        fontSize = 12.sp,
+                    )
+                }
+            }
         }
     }
 }
@@ -363,22 +414,29 @@ private fun ExportImportTabContent(
 @Composable
 private fun AppBlockingSettingsTab() {
     Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .padding(16.dp),
+        modifier = Modifier.fillMaxSize(),
         verticalArrangement = Arrangement.spacedBy(8.dp),
     ) {
-        Text(
-            text = "App blocking configuration",
-            fontSize = 14.sp,
-        )
-        Text(
-            text = "Tracked apps and their hard caps can be configured from the App Config tab.",
-            fontSize = 12.sp,
-        )
-        Text(
-            text = "Currently there is no global hard-cap switch here; each app's cost and (future) cap will be configured individually.",
-            fontSize = 12.sp,
-        )
+        NeoCard(modifier = Modifier.fillMaxWidth()) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(16.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                Text(
+                    text = "App blocking configuration",
+                    fontSize = 14.sp,
+                )
+                Text(
+                    text = "Tracked apps and limits are configured in the App Config tab.",
+                    fontSize = 12.sp,
+                )
+                Text(
+                    text = "Global caps are not available yet; each app is configured individually.",
+                    fontSize = 12.sp,
+                )
+            }
+        }
     }
 }

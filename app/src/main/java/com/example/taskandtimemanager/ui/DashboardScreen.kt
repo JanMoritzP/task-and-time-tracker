@@ -12,7 +12,10 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
+import com.example.taskandtimemanager.ui.NeoButton
+import com.example.taskandtimemanager.ui.NeoCard
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -26,10 +29,10 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.taskandtimemanager.data.DataStore
-import com.example.taskandtimemanager.model.TaskDefinition
-import com.example.taskandtimemanager.model.TaskExecution
 import com.example.taskandtimemanager.model.AppUsageAggregate
 import com.example.taskandtimemanager.model.AppUsagePurchase
+import com.example.taskandtimemanager.model.TaskDefinition
+import com.example.taskandtimemanager.model.TaskExecution
 import com.example.taskandtimemanager.model.TrackedApp
 import java.time.LocalDate
 import kotlinx.coroutines.CoroutineScope
@@ -94,138 +97,141 @@ fun DashboardScreen(dataStore: DataStore, scope: CoroutineScope) {
         }
     }
 
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .padding(16.dp),
-        verticalArrangement = Arrangement.spacedBy(16.dp),
-    ) {
-        Text("📊 Dashboard", fontSize = 20.sp, fontWeight = FontWeight.Bold)
-
-        // Quick info: coin balance and a compact "buy 10 minutes" section.
-        Text("Coins: $coinBalance", fontSize = 14.sp)
-
-        if (trackedApps.isNotEmpty()) {
-            Spacer(modifier = Modifier.height(8.dp))
-            Text("Quick App Time", fontSize = 14.sp, fontWeight = FontWeight.Bold)
-
-            // Show a small list of tracked apps with remaining minutes today and a fixed
-            // "Buy 10 minutes" action that uses the existing DataStore helpers.
-            LazyColumn(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(160.dp),
+    Surface(modifier = Modifier.fillMaxSize()) {
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(horizontal = 16.dp, vertical = 24.dp),
+            verticalArrangement = Arrangement.spacedBy(16.dp),
+        ) {
+            // Header with coin balance only
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically,
             ) {
-                items(trackedApps, key = { it.id }) { app ->
-                    val appAggregates: List<AppUsageAggregate> = todaysAggregates.filter { it.appId == app.id }
-                    val minutesUsed: Long = appAggregates.sumOf { it.usedMinutesAutomatic }
-                    val appPurchases: List<AppUsagePurchase> = purchasesByApp[app.id].orEmpty()
-                    val minutesPurchased: Long = appPurchases.sumOf { it.minutesPurchased }
-                    val minutesRemaining: Long = (minutesPurchased - minutesUsed).coerceAtLeast(0)
+                Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                    Text(
+                        text = "Dashboard",
+                        style = MaterialTheme.typography.headlineSmall,
+                        fontWeight = FontWeight.Bold,
+                    )
+                    Text(
+                        text = "Overview of today",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+                Text(
+                    text = "Coins: $coinBalance",
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold,
+                )
+            }
 
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(vertical = 4.dp),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically,
+            // Quick purchase options, small and directly under header
+            if (trackedApps.isNotEmpty()) {
+                NeoCard(modifier = Modifier.fillMaxWidth()) {
+                    Column(
+                        modifier = Modifier.padding(12.dp),
+                        verticalArrangement = Arrangement.spacedBy(8.dp),
                     ) {
-                        Column(modifier = Modifier.weight(1f)) {
-                            Text(app.name, fontSize = 13.sp, fontWeight = FontWeight.Medium)
-                            Text(
-                                text = "Remaining today: ${minutesRemaining} min",
-                                fontSize = 11.sp,
-                                color = MaterialTheme.colorScheme.secondary,
-                            )
-                        }
-                        Button(
-                            onClick = {
-                                scope.launch {
-                                    // Try to buy a fixed 10 minutes using the same semantics as the Costs screen.
-                                    val purchase = dataStore.buyAppTimeIfEnoughCoins(app.id, 10L)
-                                    if (purchase != null) {
-                                        // Refresh purchases and coin balance for the UI.
-                                        val updatedPurchases = dataStore.getAppUsagePurchases(app.id)
-                                        purchasesByApp = purchasesByApp.toMutableMap().apply {
-                                            put(app.id, updatedPurchases)
-                                        }
-                                        coinBalance = dataStore.getCoinBalance()
+                        Text(
+                            text = "Quick app time",
+                            fontSize = 13.sp,
+                            fontWeight = FontWeight.SemiBold,
+                        )
+
+                        LazyColumn(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(120.dp),
+                        ) {
+                            items(trackedApps, key = { it.id }) { app ->
+                                val appAggregates: List<AppUsageAggregate> =
+                                    todaysAggregates.filter { it.appId == app.id }
+                                val minutesUsed: Long =
+                                    appAggregates.sumOf { it.usedMinutesAutomatic }
+                                val appPurchases: List<AppUsagePurchase> =
+                                    purchasesByApp[app.id].orEmpty()
+                                val minutesPurchased: Long =
+                                    appPurchases.sumOf { it.minutesPurchased }
+                                val minutesRemaining: Long =
+                                    (minutesPurchased - minutesUsed).coerceAtLeast(0)
+
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(vertical = 2.dp),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically,
+                                ) {
+                                    Column(modifier = Modifier.weight(1f)) {
+                                        Text(
+                                            app.name,
+                                            fontSize = 12.sp,
+                                            fontWeight = FontWeight.Medium,
+                                        )
+                                        Text(
+                                            text = "Remaining today: ${minutesRemaining} min",
+                                            fontSize = 10.sp,
+                                            color = MaterialTheme.colorScheme.secondary,
+                                        )
+                                    }
+                                    Button(
+                                        onClick = {
+                                            scope.launch {
+                                                val purchase =
+                                                    dataStore.buyAppTimeIfEnoughCoins(app.id, 10L)
+                                                if (purchase != null) {
+                                                    val updatedPurchases =
+                                                        dataStore.getAppUsagePurchases(app.id)
+                                                    purchasesByApp = purchasesByApp.toMutableMap().apply {
+                                                        put(app.id, updatedPurchases)
+                                                    }
+                                                    coinBalance = dataStore.getCoinBalance()
+                                                }
+                                            }
+                                        },
+                                    ) {
+                                        Text("+10 min", fontSize = 11.sp)
                                     }
                                 }
-                            },
-                        ) {
-                            Text("+10 min")
+                            }
                         }
                     }
                 }
             }
-        }
 
-        // Stats
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(8.dp),
-            horizontalArrangement = Arrangement.spacedBy(16.dp),
-        ) {
-            Card(modifier = Modifier.weight(1f)) {
-                Column(
-                    modifier = Modifier.padding(16.dp),
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                ) {
-                    Text(
-                        text = "$tasksDoneCount/$totalTasksCount",
-                        fontSize = 24.sp,
-                        fontWeight = FontWeight.Bold,
-                    )
-                    Text("Tasks Done", fontSize = 12.sp)
-                }
-            }
-            Card(modifier = Modifier.weight(1f)) {
-                Column(
-                    modifier = Modifier.padding(16.dp),
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                ) {
-                    Text(
-                        text = "$totalExecutionsToday",
-                        fontSize = 24.sp,
-                        fontWeight = FontWeight.Bold,
-                    )
-                    Text("Executions Today", fontSize = 12.sp)
-                }
-            }
-            Card(modifier = Modifier.weight(1f)) {
-                Column(
-                    modifier = Modifier.padding(16.dp),
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                ) {
-                    Text(
-                        text = "Coins: $coinBalance",
-                        fontSize = 18.sp,
-                        fontWeight = FontWeight.Bold,
-                    )
-                    Text("Balance", fontSize = 12.sp)
-                }
-            }
-        }
+            // Pending tasks section directly after purchases
+            Text(
+                "Pending tasks",
+                fontSize = 14.sp,
+                fontWeight = FontWeight.SemiBold,
+            )
 
-        Text("Pending Tasks", fontSize = 14.sp, fontWeight = FontWeight.Bold)
-
-        LazyColumn(modifier = Modifier.fillMaxSize()) {
-            items(pendingTasks, key = { it.id }) { def ->
-                DashboardTaskCard(
-                    definition = def,
-                    executionsToday = executionsByTaskId[def.id].orEmpty(),
-                    onComplete = {
-                        scope.launch {
-                            // Create a DONE execution for now and refresh state
-                            dataStore.completeTaskNow(def.id)
-                            val today = LocalDate.now()
-                            todaysExecutions = dataStore.getExecutionsForDate(today)
-                            coinBalance = dataStore.getCoinBalance()
-                        }
-                    },
-                )
+            NeoCard(modifier = Modifier.fillMaxSize()) {
+                LazyColumn(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(16.dp),
+                    verticalArrangement = Arrangement.spacedBy(12.dp),
+                ) {
+                    items(pendingTasks, key = { it.id }) { def ->
+                        DashboardTaskCard(
+                            definition = def,
+                            executionsToday = executionsByTaskId[def.id].orEmpty(),
+                            onComplete = {
+                                scope.launch {
+                                    dataStore.completeTaskNow(def.id)
+                                    val today = LocalDate.now()
+                                    todaysExecutions = dataStore.getExecutionsForDate(today)
+                                    coinBalance = dataStore.getCoinBalance()
+                                }
+                            },
+                        )
+                    }
+                }
             }
         }
     }
@@ -237,10 +243,8 @@ private fun DashboardTaskCard(
     executionsToday: List<TaskExecution>,
     onComplete: () -> Unit,
 ) {
-    Card(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(8.dp),
+    NeoCard(
+        modifier = Modifier.fillMaxWidth(),
     ) {
         Row(
             modifier = Modifier
@@ -253,19 +257,21 @@ private fun DashboardTaskCard(
                 Text(definition.name, fontSize = 14.sp, fontWeight = FontWeight.Bold)
                 if (definition.mandatory) {
                     Text(
-                        text = "⚠️ Mandatory",
+                        text = "Mandatory",
                         fontSize = 10.sp,
                         color = MaterialTheme.colorScheme.error,
                     )
                 }
 
-                val recurrenceLabel = when (definition.recurrenceType) {
-                    "ONE_TIME" -> "One-time"
-                    "DAILY" -> "Daily"
-                    "UNLIMITED_PER_DAY" -> "Unlimited per day"
-                    "LIMITED_PER_DAY" -> "Up to ${definition.maxExecutionsPerDay ?: "?"} per day"
-                    else -> definition.recurrenceType
-                }
+                val recurrenceLabel =
+                    when (definition.recurrenceType) {
+                        "ONE_TIME" -> "One-time"
+                        "DAILY" -> "Daily"
+                        "UNLIMITED_PER_DAY" -> "Unlimited per day"
+                        "LIMITED_PER_DAY" ->
+                            "Up to ${definition.maxExecutionsPerDay ?: "?"} per day"
+                        else -> definition.recurrenceType
+                    }
 
                 Text(
                     text = recurrenceLabel,

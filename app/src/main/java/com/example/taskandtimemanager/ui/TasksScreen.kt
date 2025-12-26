@@ -15,8 +15,11 @@ import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
+import com.example.taskandtimemanager.ui.NeoButton
+import com.example.taskandtimemanager.ui.NeoCard
 import androidx.compose.material3.LocalTextStyle
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextField
 import androidx.compose.runtime.Composable
@@ -51,8 +54,9 @@ fun TasksScreen(dataStore: DataStore, scope: CoroutineScope, context: Context) {
     LaunchedEffect(Unit) {
         tasks = dataStore.getTaskDefinitions().filter { !it.archived }
         val today = LocalDate.now()
-        val todaysExecutions = dataStore.getExecutionsForDate(today)
-            .groupBy { it.taskDefinitionId }
+        val todaysExecutions =
+            dataStore.getExecutionsForDate(today)
+                .groupBy { it.taskDefinitionId }
         executionsToday = todaysExecutions
     }
 
@@ -74,49 +78,77 @@ fun TasksScreen(dataStore: DataStore, scope: CoroutineScope, context: Context) {
                     showAddDialog = false
                     editingTask = null
                 }
-            }
+            },
         )
     }
 
-    Column(modifier = Modifier.fillMaxSize()) {
-        Button(
-            onClick = {
-                editingTask = null
-                showAddDialog = true
-            },
+    Surface(modifier = Modifier.fillMaxSize()) {
+        Column(
             modifier = Modifier
-                .align(Alignment.CenterHorizontally)
-                .padding(16.dp)
+                .fillMaxSize()
+                .padding(horizontal = 16.dp, vertical = 24.dp),
+            verticalArrangement = Arrangement.spacedBy(16.dp),
         ) {
-            Text("+ Add Task")
-        }
+            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                Text(
+                    text = "Tasks",
+                    style = MaterialTheme.typography.headlineSmall,
+                    fontWeight = FontWeight.Bold,
+                )
+                Text(
+                    text = "Manage task definitions",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
 
-        LazyColumn(modifier = Modifier.fillMaxSize()) {
-            // Category-based grouping intentionally removed; all tasks shown in a flat list.
-            items(tasks) { task ->
-                val taskExecutionsToday = executionsToday[task.id].orEmpty()
-                TaskEditCard(
-                    task = task,
-                    executionsToday = taskExecutionsToday,
-                    onEdit = {
-                        editingTask = task
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.End,
+            ) {
+                Button(
+                    onClick = {
+                        editingTask = null
                         showAddDialog = true
                     },
-                    onArchive = {
-                        scope.launch {
-                            dataStore.archiveTaskDefinition(task.id)
-                            tasks = dataStore.getTaskDefinitions().filter { !it.archived }
-                        }
-                    },
-                    onDeletePermanently = {
-                        scope.launch {
-                            // TODO: add explicit permanent delete support to DataStore if still required
-                            // For now, archive only to keep history.
-                            dataStore.archiveTaskDefinition(task.id)
-                            tasks = dataStore.getTaskDefinitions().filter { !it.archived }
-                        }
+                ) {
+                    Text("Add task")
+                }
+            }
+
+            NeoCard(modifier = Modifier.fillMaxSize()) {
+                LazyColumn(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(16.dp),
+                ) {
+                    // Category-based grouping intentionally removed; all tasks shown in a flat list.
+                    items(tasks) { task ->
+                        val taskExecutionsToday = executionsToday[task.id].orEmpty()
+                        TaskEditCard(
+                            task = task,
+                            executionsToday = taskExecutionsToday,
+                            onEdit = {
+                                editingTask = task
+                                showAddDialog = true
+                            },
+                            onArchive = {
+                                scope.launch {
+                                    dataStore.archiveTaskDefinition(task.id)
+                                    tasks = dataStore.getTaskDefinitions().filter { !it.archived }
+                                }
+                            },
+                            onDeletePermanently = {
+                                scope.launch {
+                                    // TODO: add explicit permanent delete support to DataStore if still required
+                                    // For now, archive only to keep history.
+                                    dataStore.archiveTaskDefinition(task.id)
+                                    tasks = dataStore.getTaskDefinitions().filter { !it.archived }
+                                }
+                            },
+                        )
                     }
-                )
+                }
             }
         }
     }
@@ -133,22 +165,30 @@ fun TaskEditCard(
     val executionsCount = executionsToday.size
     val coinsEarnedToday = executionsToday.sumOf { it.coinsAwarded }
 
-    Card(
+    NeoCard(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(16.dp, 4.dp)
-            .animateContentSize()
+            .padding(vertical = 8.dp)
+            .animateContentSize(),
     ) {
-        Column(modifier = Modifier.padding(16.dp)) {
+        Column(
+            modifier = Modifier.padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
+                verticalAlignment = Alignment.CenterVertically,
             ) {
                 Column(modifier = Modifier.weight(1f)) {
-                    Text(task.name, fontSize = 14.sp, fontWeight = LocalTextStyle.current.fontWeight)
                     Text(
-                        text = "Reward: ${task.rewardCoins} coins · Recurrence: ${task.recurrenceType}" +
+                        task.name,
+                        fontSize = 14.sp,
+                        fontWeight = LocalTextStyle.current.fontWeight,
+                    )
+                    Text(
+                        text =
+                        "Reward: ${task.rewardCoins} coins · Recurrence: ${task.recurrenceType}" +
                             (task.maxExecutionsPerDay?.let { " · Max/day: $it" } ?: ""),
                         fontSize = 10.sp,
                         color = MaterialTheme.colorScheme.secondary,
@@ -159,35 +199,40 @@ fun TaskEditCard(
                         color = MaterialTheme.colorScheme.primary,
                     )
                     if (task.mandatory) {
-                        Text("⚠️ Mandatory", fontSize = 10.sp, color = MaterialTheme.colorScheme.error)
+                        Text(
+                            "Mandatory",
+                            fontSize = 10.sp,
+                            color = MaterialTheme.colorScheme.error,
+                        )
                     }
                 }
 
                 Button(
                     onClick = onEdit,
-                    modifier = Modifier,
                 ) {
                     Text("Edit", fontSize = 10.sp)
                 }
             }
 
             Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(top = 8.dp),
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
             ) {
                 Button(
                     onClick = onArchive,
                     modifier = Modifier.weight(1f),
-                    colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.secondary)
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = MaterialTheme.colorScheme.secondary,
+                    ),
                 ) {
                     Text("Archive", fontSize = 10.sp)
                 }
                 Button(
                     onClick = onDeletePermanently,
                     modifier = Modifier.weight(1f),
-                    colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error)
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = MaterialTheme.colorScheme.error,
+                    ),
                 ) {
                     Text("Delete", fontSize = 10.sp)
                 }
@@ -216,12 +261,23 @@ fun AddTaskDialog(task: TaskDefinition?, onDismiss: () -> Unit, onAdd: (TaskDefi
 
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text(if (task != null) "Edit Task" else "Add Task") },
+        title = { Text(if (task != null) "Edit task" else "Add task") },
         text = {
-            Column(modifier = Modifier.padding(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                TextField(value = name, onValueChange = { name = it }, label = { Text("Name") }, singleLine = true)
+            Column(
+                modifier = Modifier.padding(8.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                TextField(
+                    value = name,
+                    onValueChange = { name = it },
+                    label = { Text("Name") },
+                    singleLine = true,
+                )
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    androidx.compose.material3.Checkbox(checked = mandatory, onCheckedChange = { mandatory = it })
+                    androidx.compose.material3.Checkbox(
+                        checked = mandatory,
+                        onCheckedChange = { mandatory = it },
+                    )
                     Text("Mandatory")
                 }
                 TextField(
@@ -230,16 +286,16 @@ fun AddTaskDialog(task: TaskDefinition?, onDismiss: () -> Unit, onAdd: (TaskDefi
                     label = { Text("Base reward coins (first completion per day)") },
                     singleLine = true,
                     keyboardOptions = KeyboardOptions(
-                        keyboardType = KeyboardType.Number
+                        keyboardType = KeyboardType.Number,
                     ),
                 )
                 TextField(
                     value = recurringRewardCoins,
                     onValueChange = { recurringRewardCoins = it.filter { ch -> ch.isDigit() } },
-                    label = { Text("Recurring reward coins (subsequent completions, optional)") },
+                    label = { Text("Recurring reward coins (optional)") },
                     singleLine = true,
                     keyboardOptions = KeyboardOptions(
-                        keyboardType = KeyboardType.Number
+                        keyboardType = KeyboardType.Number,
                     ),
                 )
                 // Simple text-based recurrence type for now to avoid heavy UI changes
@@ -251,7 +307,7 @@ fun AddTaskDialog(task: TaskDefinition?, onDismiss: () -> Unit, onAdd: (TaskDefi
                             if (!checked) {
                                 maxExecutionsPerDay = ""
                             }
-                        }
+                        },
                     )
                     Text("Infinite executions per day")
                 }
@@ -262,28 +318,30 @@ fun AddTaskDialog(task: TaskDefinition?, onDismiss: () -> Unit, onAdd: (TaskDefi
                         label = { Text("Max executions per day") },
                         singleLine = true,
                         keyboardOptions = KeyboardOptions(
-                            keyboardType = androidx.compose.ui.text.input.KeyboardType.Number
+                            keyboardType = KeyboardType.Number,
                         ),
                     )
                 }
             }
         },
         confirmButton = {
-            Button(onClick = {
-                val newTask = TaskDefinition(
-                    id = task?.id ?: UUID.randomUUID().toString(),
-                    name = name.trim(),
-                    // Category is intentionally hard-coded to LEGACY and not shown in the UI.
-                    category = TaskCategoryDefaults.DEFAULT_TASK_CATEGORY,
-                    mandatory = mandatory,
-                    rewardCoins = rewardCoins.toIntOrNull() ?: 0,
-                    recurringRewardCoins = recurringRewardCoins.toIntOrNull(),
-                    recurrenceType = recurrenceType,
-                    maxExecutionsPerDay = maxExecutionsPerDay.toIntOrNull(),
-                    archived = task?.archived ?: false,
-                )
-                onAdd(newTask)
-            }) {
+            Button(
+                onClick = {
+                    val newTask = TaskDefinition(
+                        id = task?.id ?: UUID.randomUUID().toString(),
+                        name = name.trim(),
+                        // Category is intentionally hard-coded to LEGACY and not shown in the UI.
+                        category = TaskCategoryDefaults.DEFAULT_TASK_CATEGORY,
+                        mandatory = mandatory,
+                        rewardCoins = rewardCoins.toIntOrNull() ?: 0,
+                        recurringRewardCoins = recurringRewardCoins.toIntOrNull(),
+                        recurrenceType = recurrenceType,
+                        maxExecutionsPerDay = maxExecutionsPerDay.toIntOrNull(),
+                        archived = task?.archived ?: false,
+                    )
+                    onAdd(newTask)
+                },
+            ) {
                 Text("Save")
             }
         },
@@ -291,6 +349,6 @@ fun AddTaskDialog(task: TaskDefinition?, onDismiss: () -> Unit, onAdd: (TaskDefi
             Button(onClick = onDismiss) {
                 Text("Cancel")
             }
-        }
+        },
     )
 }

@@ -1,44 +1,122 @@
 package com.example.taskandtimemanager.ui
 
 import android.content.Context
-import androidx.compose.foundation.layout.*
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.material3.*
-import androidx.compose.runtime.*
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Button
+import androidx.compose.material3.Card
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.LocalTextStyle
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.Tab
+import androidx.compose.material3.TabRow
+import androidx.compose.material3.Text
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.MutableState
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.taskandtimemanager.data.DataStore
-import com.example.taskandtimemanager.model.OneTimeReward
+import com.example.taskandtimemanager.model.RewardDefinition
+import com.example.taskandtimemanager.model.RewardRedemption
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.launch
-import java.io.File
-import java.time.LocalDate
+import java.io.BufferedReader
+import java.io.InputStreamReader
+import java.io.OutputStreamWriter
 import java.util.UUID
 
 @Composable
-fun SettingsScreen(dataStore: DataStore, scope: CoroutineScope, context: Context) {
-    var rewards by remember { mutableStateOf(emptyList<OneTimeReward>()) }
+fun SettingsScreen(
+    dataStore: DataStore,
+    scope: CoroutineScope,
+    context: Context,
+) {
+    var rewardDefinitions by remember { mutableStateOf(emptyList<RewardDefinition>()) }
+    var rewardRedemptions by remember { mutableStateOf(emptyList<RewardRedemption>()) }
+    var coinBalance by remember { mutableStateOf(0) }
     var showAddRewardDialog by remember { mutableStateOf(false) }
     var activeTab by remember { mutableStateOf(0) }
+    var exportImportStatus by remember { mutableStateOf("") }
 
     LaunchedEffect(Unit) {
-        rewards = dataStore.getOneTimeRewards()
+        rewardDefinitions = dataStore.getRewardDefinitions()
+        rewardRedemptions = dataStore.getRewardRedemptions()
+        coinBalance = dataStore.getCoinBalance()
     }
 
     if (showAddRewardDialog) {
-        AddOneTimeRewardDialog(
+        AddRewardDefinitionDialog(
             onDismiss = { showAddRewardDialog = false },
             onAdd = { reward ->
                 scope.launch {
-                    dataStore.addOneTimeReward(reward)
-                    rewards = dataStore.getOneTimeRewards()
+                    dataStore.addRewardDefinition(reward)
+                    rewardDefinitions = dataStore.getRewardDefinitions()
                     showAddRewardDialog = false
                 }
-            }
+            },
         )
+    }
+
+    val exportLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.CreateDocument("application/json"),
+    ) { uri ->
+        if (uri != null) {
+            scope.launch {
+                runCatching {
+                    val json = dataStore.exportState()
+                    context.contentResolver.openOutputStream(uri)?.use { outputStream ->
+                        OutputStreamWriter(outputStream).use { writer ->
+                            writer.write(json)
+                            writer.flush()
+                        }
+                    } ?: error("Unable to open output stream")
+                }.onSuccess {
+                    exportImportStatus = "Export successful"
+                }.onFailure { e ->
+                    exportImportStatus = "Export failed: ${e.message}"
+                }
+            }
+        }
+    }
+
+    val importLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.OpenDocument(),
+    ) { uri ->
+        if (uri != null) {
+            scope.launch {
+                runCatching {
+                    context.contentResolver.openInputStream(uri)?.use { inputStream ->
+                        BufferedReader(InputStreamReader(inputStream)).use { reader ->
+                            val content = reader.readText()
+                            dataStore.importState(content)
+                        }
+                    } ?: error("Unable to open input stream")
+                }.onSuccess {
+                    exportImportStatus = "Import successful"
+                    rewardDefinitions = dataStore.getRewardDefinitions()
+                    rewardRedemptions = dataStore.getRewardRedemptions()
+                    coinBalance = dataStore.getCoinBalance()
+                }.onFailure { e ->
+                    exportImportStatus = "Import failed: ${e.message}"
+                }
+            }
+        }
     }
 
     Column(modifier = Modifier.fillMaxSize()) {
@@ -46,135 +124,196 @@ fun SettingsScreen(dataStore: DataStore, scope: CoroutineScope, context: Context
             Tab(
                 selected = activeTab == 0,
                 onClick = { activeTab = 0 },
-                text = { Text("Rewards") }
+                text = { Text("Rewards") },
             )
             Tab(
                 selected = activeTab == 1,
                 onClick = { activeTab = 1 },
-                text = { Text("Export") }
+                text = { Text("Export / Import") },
+            )
+            Tab(
+                selected = activeTab == 2,
+                onClick = { activeTab = 2 },
+                text = { Text("App Blocking") },
             )
         }
 
         when (activeTab) {
-            0 -> {
-                Column(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .padding(16.dp),
-                    verticalArrangement = Arrangement.spacedBy(16.dp)
-                ) {
-                    Button(
-                        onClick = { showAddRewardDialog = true },
-                        modifier = Modifier.align(Alignment.CenterHorizontally)
-                    ) {
-                        Text("+ Add Reward")
-                    }
-
-                    LazyColumn(modifier = Modifier.fillMaxSize()) {
-                        item {
-                            Text("Unclaimed", fontSize = 14.sp, fontWeight = LocalTextStyle.current.fontWeight)
-                        }
-                        items(rewards.filter { it.claimedDate.isEmpty() }) { reward ->
-                            RewardItem(reward, onClaim = {
-                                scope.launch {
-                                    dataStore.claimOneTimeReward(reward.id)
-                                    rewards = dataStore.getOneTimeRewards()
-                                }
-                            })
-                        }
-
-                        item {
-                            Text("Claimed", fontSize = 14.sp, fontWeight = LocalTextStyle.current.fontWeight, modifier = Modifier.padding(top = 16.dp))
-                        }
-                        items(rewards.filter { it.claimedDate.isNotEmpty() }) { reward ->
-                            Card(modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(8.dp)) {
-                                Column(modifier = Modifier.padding(12.dp)) {
-                                    Text(reward.name, fontSize = 12.sp)
-                                    Text("${reward.coins} coins - ${reward.claimedDate} ${reward.claimedTime}", fontSize = 10.sp)
-                                }
-                            }
+            0 -> RewardsTabContent(
+                rewardDefinitions = rewardDefinitions,
+                rewardRedemptions = rewardRedemptions,
+                coinBalanceState = mutableStateOf(coinBalance),
+                onRedeem = { rewardId ->
+                    scope.launch {
+                        val redemption = dataStore.redeemReward(rewardId)
+                        if (redemption != null) {
+                            rewardRedemptions = dataStore.getRewardRedemptions()
+                            coinBalance = dataStore.getCoinBalance()
                         }
                     }
-                }
+                },
+                onAddRewardClicked = { showAddRewardDialog = true },
+            )
+
+            1 -> ExportImportTabContent(
+                onExportClick = { exportLauncher.launch("task_time_manager_export.json") },
+                onImportClick = { importLauncher.launch(arrayOf("application/json")) },
+                statusText = exportImportStatus,
+            )
+
+            2 -> AppBlockingSettingsTab()
+        }
+    }
+}
+
+@Composable
+private fun RewardsTabContent(
+    rewardDefinitions: List<RewardDefinition>,
+    rewardRedemptions: List<RewardRedemption>,
+    coinBalanceState: MutableState<Int>,
+    onRedeem: (String) -> Unit,
+    onAddRewardClicked: () -> Unit,
+) {
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(16.dp),
+        verticalArrangement = Arrangement.spacedBy(16.dp),
+    ) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Text(text = "Coin balance: ${coinBalanceState.value}", fontSize = 14.sp)
+            Button(onClick = onAddRewardClicked) {
+                Text("➕ Add Reward")
             }
-            1 -> {
-                Column(modifier = Modifier
-                    .fillMaxSize()
-                    .padding(16.dp)) {
-                    Button(
-                        onClick = {
-                            scope.launch {
-                                val csv = dataStore.exportToCSV()
-                                val downloadsDir = context.getExternalFilesDir(null)
-                                val file = File(
-                                    downloadsDir,
-                                    "TaskTimeManager_${LocalDate.now()}.csv"
-                                )
-                                file.writeText(csv)
-                            }
-                        },
-                        modifier = Modifier.fillMaxWidth()
-                    ) {
-                        Text("📊 Export to CSV")
-                    }
-                    Text("Data exported to app files", fontSize = 12.sp, modifier = Modifier.padding(top = 16.dp))
-                }
+        }
+
+        Text(text = "Available", fontSize = 14.sp)
+        LazyColumn(modifier = Modifier.fillMaxWidth()) {
+            items(rewardDefinitions.filter { !it.archived }) { reward ->
+                RewardDefinitionItem(
+                    reward = reward,
+                    onRedeem = { onRedeem(reward.id) },
+                )
+            }
+        }
+
+        Text(text = "History", fontSize = 14.sp, modifier = Modifier.padding(top = 16.dp))
+        LazyColumn(modifier = Modifier.fillMaxWidth()) {
+            items(rewardRedemptions) { redemption ->
+                RewardRedemptionItem(
+                    redemption = redemption,
+                    rewardDefinitions = rewardDefinitions,
+                )
             }
         }
     }
 }
 
 @Composable
-fun RewardItem(reward: OneTimeReward, onClaim: () -> Unit) {
-    Card(modifier = Modifier
-        .fillMaxWidth()
-        .padding(8.dp)) {
+private fun RewardDefinitionItem(
+    reward: RewardDefinition,
+    onRedeem: () -> Unit,
+) {
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(8.dp),
+    ) {
         Row(
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(12.dp),
             horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
+            verticalAlignment = Alignment.CenterVertically,
         ) {
             Column(modifier = Modifier.weight(1f)) {
                 Text(reward.name, fontSize = 12.sp)
                 Text(reward.description, fontSize = 10.sp)
-                Text("${reward.coins} coins", fontSize = 11.sp, fontWeight = LocalTextStyle.current.fontWeight)
+                Text("Cost: ${reward.coinCost} coins", fontSize = 11.sp)
             }
-            Button(onClick = onClaim, modifier = Modifier.height(36.dp)) {
-                Text("Claim")
+            Button(onClick = onRedeem, modifier = Modifier.padding(start = 8.dp)) {
+                Text("Redeem")
             }
         }
     }
 }
 
 @Composable
-fun AddOneTimeRewardDialog(onDismiss: () -> Unit, onAdd: (OneTimeReward) -> Unit) {
+private fun RewardRedemptionItem(
+    redemption: RewardRedemption,
+    rewardDefinitions: List<RewardDefinition>,
+) {
+    val rewardName = rewardDefinitions.find { it.id == redemption.rewardDefinitionId }?.name
+        ?: "Unknown reward"
+
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(8.dp),
+    ) {
+        Column(modifier = Modifier.padding(12.dp)) {
+            Text(rewardName, fontSize = 12.sp)
+            Text("Coins spent: ${redemption.coinsSpent}", fontSize = 11.sp)
+            Text("When: ${redemption.redemptionDateTime}", fontSize = 10.sp)
+        }
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun AddRewardDefinitionDialog(
+    onDismiss: () -> Unit,
+    onAdd: (RewardDefinition) -> Unit,
+) {
     var name by remember { mutableStateOf("") }
     var description by remember { mutableStateOf("") }
-    var coins by remember { mutableStateOf("") }
+    var coinCost by remember { mutableStateOf("") }
 
     AlertDialog(
         onDismissRequest = onDismiss,
         title = { Text("Add Reward") },
         text = {
             Column(modifier = Modifier.padding(8.dp)) {
-                TextField(value = name, onValueChange = { name = it }, label = { Text("Reward Name") })
-                TextField(value = description, onValueChange = { description = it }, label = { Text("Description") })
-                TextField(value = coins, onValueChange = { coins = it }, label = { Text("Coins") })
+                OutlinedTextField(
+                    value = name,
+                    onValueChange = { name = it },
+                    label = { Text("Reward Name") },
+                    modifier = Modifier.fillMaxWidth(),
+                )
+                OutlinedTextField(
+                    value = description,
+                    onValueChange = { description = it },
+                    label = { Text("Description") },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(top = 8.dp),
+                )
+                OutlinedTextField(
+                    value = coinCost,
+                    onValueChange = { coinCost = it },
+                    label = { Text("Coin Cost") },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(top = 8.dp),
+                )
             }
         },
         confirmButton = {
             Button(onClick = {
-                val reward = OneTimeReward(
-                    id = UUID.randomUUID().toString(),
-                    name = name,
-                    description = description,
-                    coins = coins.toIntOrNull() ?: 0
-                )
-                onAdd(reward)
+                val cost = coinCost.toIntOrNull() ?: 0
+                if (name.isNotBlank() && cost > 0) {
+                    val reward = RewardDefinition(
+                        id = UUID.randomUUID().toString(),
+                        name = name,
+                        description = description,
+                        coinCost = cost,
+                    )
+                    onAdd(reward)
+                }
             }) {
                 Text("Add")
             }
@@ -183,6 +322,63 @@ fun AddOneTimeRewardDialog(onDismiss: () -> Unit, onAdd: (OneTimeReward) -> Unit
             Button(onClick = onDismiss) {
                 Text("Cancel")
             }
-        }
+        },
     )
+}
+
+@Composable
+private fun ExportImportTabContent(
+    onExportClick: () -> Unit,
+    onImportClick: () -> Unit,
+    statusText: String,
+) {
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(16.dp),
+        verticalArrangement = Arrangement.spacedBy(16.dp),
+    ) {
+        Button(
+            onClick = onExportClick,
+            modifier = Modifier.fillMaxWidth(),
+        ) {
+            Text("📤 Export Data")
+        }
+        Button(
+            onClick = onImportClick,
+            modifier = Modifier.fillMaxWidth(),
+        ) {
+            Text("📥 Import Data")
+        }
+        if (statusText.isNotBlank()) {
+            Text(
+                text = statusText,
+                fontSize = 12.sp,
+                modifier = Modifier.padding(top = 8.dp),
+            )
+        }
+    }
+}
+
+@Composable
+private fun AppBlockingSettingsTab() {
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(16.dp),
+        verticalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        Text(
+            text = "App blocking configuration",
+            fontSize = 14.sp,
+        )
+        Text(
+            text = "Tracked apps and their hard caps can be configured from the App Config tab.",
+            fontSize = 12.sp,
+        )
+        Text(
+            text = "Currently there is no global hard-cap switch here; each app's cost and (future) cap will be configured individually.",
+            fontSize = 12.sp,
+        )
+    }
 }

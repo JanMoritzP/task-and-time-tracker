@@ -2,6 +2,13 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:tools="http://schemas.android.com/tools">
 
+    <!-- Permission required to read app usage stats / foreground app -->
+    <uses-permission android:name="android.permission.PACKAGE_USAGE_STATS" />
+
+    <!-- Foreground service permissions for continuous app blocking checks (Android 14+) -->
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC" />
+
     <!-- Query all packages - needed to dynamically add apps to block without reinstalling -->
     <uses-permission android:name="android.permission.QUERY_ALL_PACKAGES" />
 
@@ -45,7 +52,8 @@
         <!-- Background service for app blocking -->
         <service
             android:name=".AppBlockerService"
-            android:exported="false" />
+            android:exported="false"
+            android:foregroundServiceType="dataSync" />
 
         <!-- Device admin receiver - handles admin permissions -->
         <receiver

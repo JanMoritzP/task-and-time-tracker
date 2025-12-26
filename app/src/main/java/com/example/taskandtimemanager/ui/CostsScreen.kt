@@ -6,10 +6,12 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.taskandtimemanager.data.DataStore
+import com.example.taskandtimemanager.AppBlockerCommands
 import com.example.taskandtimemanager.model.AppUsageAggregate
 import com.example.taskandtimemanager.model.AppUsagePurchase
 import com.example.taskandtimemanager.model.TrackedApp
@@ -113,6 +115,21 @@ fun CostsScreen(
 
                         Button(onClick = { showBuyDialog = true }) {
                             Text("Buy Time")
+                        }
+
+                        // Debug / entry point: allow manually opening the blocking overlay
+                        // for this app to verify the UI even when time is not yet exhausted.
+                        Spacer(modifier = Modifier.height(8.dp))
+                        val context = LocalContext.current
+                        OutlinedButton(onClick = {
+                            // Use the shared helper to launch the overlay.
+                            AppBlockerCommands.showBlockingOverlay(
+                                context = context,
+                                targetPackage = app.packageName,
+                                targetAppName = app.name,
+                            )
+                        }) {
+                            Text("Show Blocking Overlay for Debug")
                         }
 
                         if (showBuyDialog) {

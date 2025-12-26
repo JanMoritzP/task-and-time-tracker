@@ -33,7 +33,10 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.taskandtimemanager.AdminReceiver
 import com.example.taskandtimemanager.AppBlockerService
+import com.example.taskandtimemanager.data.AppBlockerStatusHolder
 import com.example.taskandtimemanager.data.DataStore
+import android.net.Uri
+import android.provider.Settings
 import com.example.taskandtimemanager.model.TrackedApp
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.launch
@@ -77,6 +80,47 @@ fun AppConfigScreen(
     }
 
     Column(modifier = Modifier.fillMaxSize()) {
+        // Diagnostics card so we can see what the service thinks is happening.
+        val status = remember { mutableStateOf(AppBlockerStatusHolder.get()) }
+        LaunchedEffect(Unit) {
+            // Very lightweight polling – good enough for manual debugging.
+            while (true) {
+                status.value = AppBlockerStatusHolder.get()
+                kotlinx.coroutines.delay(2000)
+            }
+        }
+
+        Card(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(16.dp),
+            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
+        ) {
+            Column(modifier = Modifier.padding(16.dp)) {
+                Text("Debug status", fontSize = 14.sp)
+                Text(
+                    text = "Usage access: " + if (status.value.hasUsageAccess) "granted" else "NOT granted",
+                    fontSize = 10.sp,
+                )
+                Text(
+                    text = "Last foreground package: " + (status.value.lastCheckedPackage ?: "-"),
+                    fontSize = 10.sp,
+                )
+                Text(
+                    text = "Last tracked app: " + (status.value.lastTrackedAppName ?: "-"),
+                    fontSize = 10.sp,
+                )
+                Text(
+                    text = "Last remaining minutes: " + (status.value.lastRemainingMinutes?.toString() ?: "-"),
+                    fontSize = 10.sp,
+                )
+                Text(
+                    text = "Last block action package: " + (status.value.lastBlockActionPackage ?: "-"),
+                    fontSize = 10.sp,
+                )
+            }
+        }
+
         if (!adminGranted) {
             Card(
                 modifier = Modifier
@@ -101,6 +145,35 @@ fun AppConfigScreen(
                         modifier = Modifier.padding(top = 8.dp)
                     ) {
                         Text("Grant Access")
+                    }
+                }
+            }
+        }
+
+        if (!Settings.canDrawOverlays(context)) {
+            Card(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(16.dp),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.errorContainer)
+            ) {
+                Column(modifier = Modifier.padding(16.dp)) {
+                    Text("⚠️ Overlay Permission Required", fontSize = 14.sp)
+                    Text(
+                        text = "Grant \"Display over other apps\" so the blocker can show over YouTube/Photos, etc.",
+                        fontSize = 10.sp,
+                    )
+                    Button(
+                        onClick = {
+                            val intent = Intent(
+                                Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
+                                Uri.parse("package:${context.packageName}"),
+                            )
+                            context.startActivity(intent)
+                        },
+                        modifier = Modifier.padding(top = 8.dp)
+                    ) {
+                        Text("Grant overlay permission")
                     }
                 }
             }

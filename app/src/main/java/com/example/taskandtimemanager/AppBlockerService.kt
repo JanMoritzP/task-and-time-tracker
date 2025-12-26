@@ -17,7 +17,9 @@ import android.os.Looper
 import android.provider.Settings
 import android.util.Log
 import android.view.WindowManager
-import androidx.appcompat.app.AlertDialog
+import android.app.AlertDialog
+import android.net.Uri
+import com.example.taskandtimemanager.data.AppBlockerStatusHolder
 import com.example.taskandtimemanager.data.AppDatabase
 import com.example.taskandtimemanager.data.AppUsageManager
 import com.example.taskandtimemanager.data.CoinManager
@@ -118,10 +120,27 @@ class AppBlockerService : Service() {
      *     buy more minutes using coins, or block the app when declined / not enough coins.
      */
     private suspend fun checkCurrentForegroundAppAndBlockIfNeeded() {
-        val packageName = getCurrentForegroundPackageName()
-        Log.d(TAG, "checkCurrentForegroundAppAndBlockIfNeeded() - foreground package = $packageName")
+        val hasUsageAccess = hasUsageAccessPermission()
+        val packageName = getCurrentForegroundPackageNameInternal(hasUsageAccess)
+
+        Log.d(
+            TAG,
+            "checkCurrentForegroundAppAndBlockIfNeeded() - hasUsageAccess=$hasUsageAccess, " +
+                "foreground package=$packageName",
+        )
+
+        // For the debug UI we now rely solely on the Settings.Secure flag for
+        // whether usage access is granted, and treat an empty stats result as
+        // "no recent data yet" instead of "permission not granted".
+        AppBlockerStatusHolder.update { previous ->
+            previous.copy(
+                hasUsageAccess = hasUsageAccess,
+                lastCheckedPackage = packageName,
+            )
+        }
+
         if (packageName == null) {
-            Log.d(TAG, "No foreground package (or no usage access). Skipping.")
+            Log.d(TAG, "No foreground package (or no recent stats). Skipping.")
             return
         }
 
@@ -131,6 +150,12 @@ class AppBlockerService : Service() {
         if (trackedApp == null) {
             Log.d(TAG, "Foreground app $packageName is not a tracked app. Skipping.")
             return
+        }
+
+        AppBlockerStatusHolder.update { previous ->
+            previous.copy(
+                lastTrackedAppName = trackedApp.name,
+            )
         }
         Log.d(TAG, "Matched tracked app: id=${trackedApp.id}, name=${trackedApp.name}, costPerMinute=${trackedApp.costPerMinute}, purchasedMinutesTotal=${trackedApp.purchasedMinutesTotal}")
 
@@ -156,48 +181,96 @@ class AppBlockerService : Service() {
 
         val remainingMinutes: Long = effectiveLimitMinutes - usedMinutesAutomatic
         Log.d(TAG, "Remaining minutes for package=$packageName: $remainingMinutes")
-        if (remainingMinutes > 0) {
-            Log.d(TAG, "Still have remaining time. Not blocking.")
-            return
-        }
 
-        Log.d(TAG, "No remaining time. Triggering blocking dialog for $packageName")
-        // We're out of time for this app.
-        showBlockingDialog(trackedApp.packageName)
-    }
+        AppBlockerStatusHolder.update { previous ->
+            previous.copy(
+                lastRemainingMinutes = remainingMinutes,
+                lastTrackedAppName = trackedApp.name,
+                lastCheckedPackage = packageName,
+            )
+        }
+ 
+         if (remainingMinutes > 0) {
+             Log.d(TAG, "Still have remaining time. Not blocking.")
+             // If there is an overlay currently showing for this package, tell it to dismiss.
+             val dismissIntent = AppBlockerOverlayService.createDismissIntent(this@AppBlockerService)
+             startService(dismissIntent)
+             return
+         }
+ 
+         Log.d(TAG, "No remaining time. Starting overlay for $packageName")
+ 
+         // Start the full-screen overlay service which shows the blocking UI on top of the app.
+         val overlayIntent = AppBlockerOverlayService.createStartIntent(
+             context = this@AppBlockerService,
+             targetPackage = trackedApp.packageName,
+             targetAppName = trackedApp.name,
+         )
+ 
+         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+             startForegroundService(overlayIntent)
+         } else {
+             startService(overlayIntent)
+         }
+ 
+         // For debug / diagnostics UI.
+         AppBlockerStatusHolder.update { previous ->
+             previous.copy(
+                 lastBlockActionPackage = trackedApp.packageName,
+             )
+         }
+     }
 
     /**
      * Attempts to determine the foreground app using UsageStatsManager.
      * This is inherently best-effort and may lag behind real time.
+     *
+     * [hasUsageAccess] is passed in so we can record it for diagnostics
+     * without re-checking it here.
      */
-    private fun getCurrentForegroundPackageName(): String? {
+    private fun getCurrentForegroundPackageNameInternal(hasUsageAccess: Boolean): String? {
         // Ensure the user has granted the "Usage Access" permission.
-        if (!hasUsageAccessPermission()) {
-            Log.d(TAG, "Usage access permission not granted.")
-            return null
-        }
+//        if (!hasUsageAccess) {
+//            Log.d(TAG, "Usage access permission not granted.")
+//            return null
+//        }
 
-        val endTime = System.currentTimeMillis()
-        val startTime = endTime - 60_000 // last 60 seconds
-        Log.d(TAG, "Querying usage stats from $startTime to $endTime")
+        val endTimeShort = System.currentTimeMillis()
+        val startTimeShort = endTimeShort - 60_000 // last 60 seconds
+        val endTimeLong = endTimeShort
+        val startTimeLong = endTimeShort - 24 * 60 * 60 * 1000L // last 24 hours
 
-        val stats = usageStatsManager.queryUsageStats(
+        Log.d(TAG, "Querying usage stats (short window) from $startTimeShort to $endTimeShort")
+        val shortStats = usageStatsManager.queryUsageStats(
             UsageStatsManager.INTERVAL_DAILY,
-            startTime,
-            endTime,
+            startTimeShort,
+            endTimeShort,
         )
-        if (stats == null) {
-            Log.d(TAG, "queryUsageStats returned null")
-            return null
-        }
-        if (stats.isEmpty()) {
-            Log.d(TAG, "queryUsageStats returned empty list")
-            return null
+
+        Log.d(TAG, "Querying usage stats (24h window) from $startTimeLong to $endTimeLong")
+        val longStats = usageStatsManager.queryUsageStats(
+            UsageStatsManager.INTERVAL_DAILY,
+            startTimeLong,
+            endTimeLong,
+        )
+
+        Log.d(
+            TAG,
+            "Usage stats sizes: shortWindow=${shortStats?.size ?: -1}, longWindow=${longStats?.size ?: -1}",
+        )
+
+        val statsToUse = when {
+            !shortStats.isNullOrEmpty() -> shortStats
+            !longStats.isNullOrEmpty() -> longStats
+            else -> {
+                Log.d(TAG, "Both short and long usage stats windows are empty or null")
+                return null
+            }
         }
 
-        val recent = stats.maxByOrNull { it.lastTimeUsed }
+        val recent = statsToUse.maxByOrNull { it.lastTimeUsed }
         if (recent == null) {
-            Log.d(TAG, "No recent usage stats item found")
+            Log.d(TAG, "No recent usage stats item found in chosen window")
             return null
         }
         Log.d(TAG, "Most recently used package=${recent.packageName}, lastTimeUsed=${recent.lastTimeUsed}")
@@ -220,44 +293,16 @@ class AppBlockerService : Service() {
     }
 
     /**
-     * Shows a modal dialog on top of the current app informing the user that no
-     * time is left and allowing them to buy more minutes.
+     * Enforces blocking when no time is left.
      *
-     * NOTE: Displaying UI from a Service requires a SYSTEM_ALERT_WINDOW /
-     * overlay-style permission for full-screen overlays on modern Android. For a
-     * personal device-admin deployment this may be acceptable, but Play Store
-     * apps should not rely on this approach.
+     * NOTE: We deliberately do not show any UI from this Service, because
+     * modern Android versions restrict background activity launches and
+     * overlay windows (TYPE_APPLICATION_OVERLAY) from services. The UI for
+     * buying additional minutes should be surfaced from an Activity instead.
      */
     private fun showBlockingDialog(targetPackage: String) {
-        handler.post {
-            // We use the application context with a system alert window type so
-            // the dialog appears above the blocked app. This is best-effort and
-            // may behave differently across OEMs.
-            val builder = AlertDialog.Builder(this@AppBlockerService).apply {
-                setTitle("Time limit reached")
-                setMessage("You have no remaining time for this app. Buy more minutes with coins?")
-                setCancelable(false)
-                setPositiveButton("Buy 10 minutes") { dialog, _ ->
-                    dialog.dismiss()
-                    scope.launch { handlePurchaseOrBlock(targetPackage, minutesToBuy = 10L) }
-                }
-                setNegativeButton("Block now") { dialog, _ ->
-                    dialog.dismiss()
-                    scope.launch { hideApplication(targetPackage) }
-                }
-            }
-
-            val dialog = builder.create()
-            if (dialog.window != null) {
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                    dialog.window!!.setType(WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY)
-                } else {
-                    @Suppress("DEPRECATION")
-                    dialog.window!!.setType(WindowManager.LayoutParams.TYPE_SYSTEM_ALERT)
-                }
-            }
-            dialog.show()
-        }
+        // No dialog / overlay from the service. Just enforce the block.
+        scope.launch { hideApplication(targetPackage) }
     }
 
     /**
@@ -311,12 +356,22 @@ class AppBlockerService : Service() {
      */
     private suspend fun hideApplication(packageName: String) {
         if (!devicePolicyManager.isAdminActive(adminComponent)) {
+            Log.w(TAG, "hideApplication: admin not active, cannot hide $packageName")
             return
         }
+
+        AppBlockerStatusHolder.update { previous ->
+            previous.copy(
+                lastBlockActionPackage = packageName,
+            )
+        }
+
         try {
-            devicePolicyManager.setApplicationHidden(adminComponent, packageName, true)
-        } catch (_: SecurityException) {
-            // Some devices / OEMs may restrict this even for device admins.
+            Log.d(TAG, "hideApplication: attempting to hide $packageName")
+            val success = devicePolicyManager.setApplicationHidden(adminComponent, packageName, true)
+            Log.d(TAG, "hideApplication: setApplicationHidden returned $success for $packageName")
+        } catch (e: SecurityException) {
+            Log.e(TAG, "hideApplication: SecurityException while hiding $packageName", e)
         }
     }
 

@@ -11,9 +11,13 @@
     <!-- Foreground service permissions for continuous app blocking checks (Android 14+) -->
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SPECIAL_USE" />
 
     <!-- Query all packages - needed to dynamically add apps to block without reinstalling -->
     <uses-permission android:name="android.permission.QUERY_ALL_PACKAGES" />
+
+    <!-- Permission to show overlay dialogs from the service (TYPE_APPLICATION_OVERLAY) -->
+    <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW" />
 
     <!-- Query specific packages we need to check/block -->
     <queries>
@@ -52,9 +56,31 @@
             </intent-filter>
         </activity>
 
+        <!-- Full-screen blocking overlay when a tracked app runs out of time (manual / in-app testing) -->
+        <activity
+            android:name=".BlockingActivity"
+            android:exported="false"
+            android:launchMode="singleTask"
+            android:theme="@style/Theme.TaskAndTimeManager" />
+
+        <!-- Runtime overlay Activity launched by AppBlockerOverlayService on top of other apps -->
+        <activity
+            android:name=".BlockingOverlayActivity"
+            android:exported="false"
+            android:launchMode="singleTask"
+            android:theme="@style/Theme.TaskAndTimeManager" />
+
         <!-- Background service for app blocking -->
         <service
             android:name=".AppBlockerService"
+            android:exported="false"
+            android:foregroundServiceType="dataSync" />
+
+        <!-- Overlay foreground service that shows a full-screen blocking UI on top of other apps.
+             Uses the same dataSync foreground type as AppBlockerService to satisfy
+             Android 14+ FGS type requirements. -->
+        <service
+            android:name=".AppBlockerOverlayService"
             android:exported="false"
             android:foregroundServiceType="dataSync" />
 

@@ -135,6 +135,12 @@ class DataStore(context: Context) {
 
     suspend fun updateTrackedApp(app: TrackedApp) = appUsageManager.updateTrackedApp(app)
 
+    /**
+     * Permanently remove a tracked app so it is no longer considered by the
+     * blocker or coin logic. Historical usage and purchases remain intact.
+     */
+    suspend fun removeTrackedApp(app: TrackedApp) = appUsageManager.removeTrackedApp(app)
+
     suspend fun getAppUsageAggregatesForDate(date: LocalDate): List<AppUsageAggregate> =
         appUsageManager.getAppUsageAggregatesForDate(date)
 

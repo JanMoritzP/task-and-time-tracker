@@ -162,9 +162,26 @@ fun AppConfigScreen(
                         .fillMaxWidth()
                 ) {
                     Column(modifier = Modifier.padding(16.dp)) {
-                        Text(app.name, fontSize = 14.sp, fontWeight = androidx.compose.material3.LocalTextStyle.current.fontWeight)
-                        Text("Package: ${app.packageName}", fontSize = 10.sp)
-                        Text("Cost: ${app.costPerMinute}/min", fontSize = 10.sp)
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text(app.name, fontSize = 14.sp, fontWeight = androidx.compose.material3.LocalTextStyle.current.fontWeight)
+                                Text("Package: ${app.packageName}", fontSize = 10.sp)
+                                Text("Cost: ${app.costPerMinute}/min", fontSize = 10.sp)
+                            }
+                            Button(
+                                onClick = {
+                                    scope.launch {
+                                        dataStore.removeTrackedApp(app)
+                                        apps = dataStore.getTrackedApps()
+                                    }
+                                },
+                            ) {
+                                Text("Remove")
+                            }
+                        }
                         Row(
                             modifier = Modifier
                                 .fillMaxWidth()

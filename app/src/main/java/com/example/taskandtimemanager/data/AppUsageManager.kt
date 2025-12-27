@@ -21,6 +21,8 @@ class AppUsageManager(
 
     suspend fun updateTrackedApp(app: TrackedApp) = trackedAppDao.update(app)
 
+    suspend fun removeTrackedApp(app: TrackedApp) = trackedAppDao.delete(app)
+
     suspend fun getAppUsageAggregatesForDate(date: LocalDate): List<AppUsageAggregate> =
         appUsageAggregateDao.getAll().filter { it.date == date.toString() }
 

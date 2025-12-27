@@ -176,11 +176,53 @@ class DataStore(context: Context) {
         return purchase
     }
 
+    /**
+     * Clear all app usage purchases. Intended to be called by the nightly worker.
+     */
+    suspend fun clearAllAppUsagePurchases() {
+        appUsageManager.clearAllPurchasesTodayOrAll()
+    }
+
     // ========= COINS / BALANCE =========
-
+ 
     suspend fun getCoinBalance(): Int = coinManager.getCoinBalance()
-
+ 
     suspend fun recalculateCoinBalance(): Int = coinManager.recalculateCoinBalance()
+
+    /**
+     * Insert a synthetic neutralizing record so that the derived coin
+     * balance becomes zero without deleting any historical entries.
+     *
+     * When [useRewardRedemption] is true a RewardRedemption row is created,
+     * otherwise a TaskExecution with negative coins is inserted.
+     */
+    suspend fun neutralizeAllCoins(useRewardRedemption: Boolean) {
+        val currentBalance = coinManager.getCoinBalance()
+        if (currentBalance == 0) return
+
+        val now = LocalDateTime.now()
+        if (useRewardRedemption) {
+            val neutralizingRedemption =
+                RewardRedemption(
+                    id = UUID.randomUUID().toString(),
+                    rewardDefinitionId = "synthetic_coin_reset",
+                    redemptionDateTime = now.toString(),
+                    coinsSpent = currentBalance,
+                )
+            db.rewardRedemptionDao().insert(neutralizingRedemption)
+        } else {
+            val neutralizingExecution =
+                TaskExecution(
+                    id = UUID.randomUUID().toString(),
+                    taskDefinitionId = "synthetic_coin_reset",
+                    date = now.toLocalDate().toString(),
+                    time = now.toLocalTime().toString(),
+                    status = "DONE",
+                    coinsAwarded = -currentBalance,
+                )
+            db.taskExecutionDao().insert(neutralizingExecution)
+        }
+    }
 
     // ========= EXPORT / IMPORT =========
 

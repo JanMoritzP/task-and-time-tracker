@@ -11,6 +11,7 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import java.time.LocalDate
+import java.time.LocalTime
 import java.time.ZoneId
 import java.util.UUID
 import java.util.concurrent.TimeUnit
@@ -141,8 +142,21 @@ class UsageTracker(
 
     private fun getDayBounds(date: LocalDate): Pair<Long, Long> {
         val zone = defaultZone()
-        val start: Long = date.atStartOfDay(zone).toInstant().toEpochMilli()
-        val end: Long = date.plusDays(1).atStartOfDay(zone).toInstant().toEpochMilli() - 1
+
+        // Define a logical "day" from 06:00 of [date] until 05:59:59.999 of the next calendar day.
+        val start: Long = date
+            .atTime(LocalTime.of(6, 0))
+            .atZone(zone)
+            .toInstant()
+            .toEpochMilli()
+
+        val end: Long = date
+            .plusDays(1)
+            .atTime(LocalTime.of(5, 59, 59, 999_000_000))
+            .atZone(zone)
+            .toInstant()
+            .toEpochMilli()
+
         return start to end
     }
 

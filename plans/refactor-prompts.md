@@ -100,4 +100,44 @@ Use these prompts one by one. Each prompt tells the assistant exactly what to do
 
 ---
 
-Use each prompt separately in order. After finishing Prompt 18, the project should have a cleaner, more coherent UI with a subtle neomorphism-inspired aesthetic while preserving the existing data and blocking logic.
+## 7. Weekly coin reset and daily purchase reset (WorkManager)
+
+**Prompt 19 – Add persistent settings for last reset timestamps**
+
+> In this repo, add a small persistence mechanism (e.g., DataStore Preferences or a tiny Room table) to store two timestamps: `lastWeeklyCoinResetDate` and `lastDailyPurchaseResetDate`. Place the code in a dedicated class (for example, LastResetStorage) under app/src/main/java/com/example/taskandtimemanager/data, respecting the one-class-per-file rule. Expose suspend functions to read and update these values so they can be used from workers and the DataStore facade.
+
+**Prompt 20 – Introduce a PeriodicResetWorker with WorkManager**
+
+> In this repo, add a dependency on AndroidX WorkManager in app/build.gradle.kts and implement a PeriodicResetWorker class under app/src/main/java/com/example/taskandtimemanager/data that runs once per day (e.g., using PeriodicWorkRequestBuilder<PeriodicResetWorker>(1, TimeUnit.DAYS)). In doWork(), obtain a DataStore instance and LastResetStorage, then delegate to a helper method that performs: (a) daily cleanup of purchased app time, and (b) weekly coin reset if it is Sunday and coins have not yet been reset this week.
+
+**Prompt 21 – Implement daily reset of purchased app time**
+
+> In this repo, extend AppUsageManager and AppUsagePurchaseDao so that there is a clear operation for clearing all AppUsagePurchase records (e.g., a suspend function clearAllPurchasesTodayOrAll()). Wire this into PeriodicResetWorker so that once per night (every worker run) all purchased minutes are wiped by deleting AppUsagePurchase entries, then recompute any cached values if needed. Ensure DashboardScreen and CostsScreen derive remaining minutes only from the current AppUsagePurchase records so the reset is immediately visible after the next data fetch.
+
+**Prompt 22 – Implement weekly coin reset every Sunday night**
+
+> In this repo, introduce a coin-reset mechanism that is triggered from PeriodicResetWorker: if today is Sunday and lastWeeklyCoinResetDate is before this Sunday, then reset the effective coin balance to 0. Since CoinManager currently derives coins from immutable history, implement this by inserting synthetic neutralizing records, for example by (1) summing the current balance via CoinManager.getCoinBalance(), and (2) creating a negative-compensation RewardRedemption or synthetic TaskExecution that cancels out the current balance. Persist the reset date via LastResetStorage so the reset only happens once per Sunday.
+
+**Prompt 23 – Register and initialize WorkManager scheduling**
+
+> In this repo, wire the PeriodicResetWorker into the app startup. In MainActivity.kt or a small Application subclass (e.g., TaskAndTimeManagerApp), enqueue a unique periodic work request that runs once per day, with reasonable constraints (e.g., requiresBatteryNotLow = true is optional). Make sure multiple enqueues do not create duplicate workers by using enqueueUniquePeriodicWork with KEEP or UPDATE policy.
+
+**Prompt 24 – Add tests and documentation for reset behaviour**
+
+> In this repo, add unit tests (where feasible) around CoinManager / reset helper logic to verify that the weekly reset inserts correct neutralizing records and results in a zero coin balance after reset. Also, document the weekly coin reset and daily app-time reset behaviour in app/requirements.md or a short README section so the behaviour is explicit for future changes.
+
+---
+
+Use each prompt separately in order. After finishing Prompt 24, the project should support weekly coin resets on Sundays and nightly resets of purchased app time using WorkManager, while keeping the architecture clean and respecting the one-class-per-file rule.
+
+---
+
+## 8. On-open reset logic and nightly free time
+
+**Prompt 25 – Replace WorkManager-based resets with on-open resets**
+
+> In this repo, refactor the daily/weekly reset mechanism to run when a tracked app is opened instead of via WorkManager. Extract the reset decision logic from [`PeriodicResetWorker.performResets()`](app/src/main/java/com/example/taskandtimemanager/data/PeriodicResetWorker.kt:39) into a reusable helper class (for example, `ResetCoordinator`) under `app/src/main/java/com/example/taskandtimemanager/data`, keeping one Kotlin class per file. The helper should use [`LastResetStorage`](app/src/main/java/com/example/taskandtimemanager/data/LastResetStorage.kt:18) to determine if (a) a new 6am boundary has been crossed since the last daily purchase reset, and (b) a new Sunday-to-Monday week boundary has been crossed since the last weekly coin reset / weekly coin zero-reset. Call this helper from the app-open logic in the blocker flow (e.g., wherever the foreground app is inspected in `AppBlockerService`), and remove or effectively disable the periodic WorkManager scheduling while keeping the reset semantics identical (daily clear of `AppUsagePurchase` plus weekly synthetic zeroing of coins).
+
+**Prompt 26 – Implement robust nightly free time handling**
+
+> In this repo, fix the nightly free time feature so that enabling the "nightly free time" checkbox in the app limits UI persists correctly and is only cleared after the configured free period ends, instead of being reset immediately when an app is opened. Store the nightly-free-time configuration and current active state in a persistent layer (e.g., a small DataStore Preferences class or dedicated Room table) under `app/src/main/java/com/example/taskandtimemanager/data`, respecting the one-class-per-file rule. Integrate this state with the blocking logic in `AppBlockerService`: when nightly free time is active, bypass blocking and do not decrement purchased minutes; when the free period has passed (based on local time and the configured window), automatically deactivate nightly free time and resume normal blocking behavior. Ensure the UI in `AppConfigScreen` reads and writes this state consistently so the checkbox reflects the actual persisted value.

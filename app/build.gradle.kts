@@ -49,6 +49,9 @@ android {
 }
 
 dependencies {
+    // WorkManager
+    implementation("androidx.work:work-runtime-ktx:2.9.0")
+
     // Core
     implementation("androidx.core:core-ktx:1.12.0")
     implementation("androidx.appcompat:appcompat:1.6.1")
@@ -72,6 +75,9 @@ dependencies {
     implementation("androidx.room:room-ktx:2.5.2")
     ksp("androidx.room:room-compiler:2.5.2")
 
+    // DataStore Preferences
+    implementation("androidx.datastore:datastore-preferences:1.1.1")
+    implementation("androidx.datastore:datastore-core:1.1.1")
     // Serialization
     implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.6.0")
 

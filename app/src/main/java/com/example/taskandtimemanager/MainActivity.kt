@@ -7,6 +7,7 @@ import android.os.Build
 import android.os.Bundle
 import android.provider.Settings
 import androidx.activity.ComponentActivity
+import com.example.taskandtimemanager.data.PeriodicResetWorker
 import androidx.activity.compose.setContent
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.MaterialTheme
@@ -31,6 +32,10 @@ import com.example.taskandtimemanager.ui.TasksScreen
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+
+        // Enqueue periodic background worker for daily/weekly housekeeping. Using KEEP
+        // ensures we don't create duplicate workers if this is called multiple times.
+        PeriodicResetWorkerScheduler.enqueue(applicationContext)
 
         val serviceIntent = Intent(this, AppBlockerService::class.java)
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {

@@ -34,4 +34,14 @@ class AppUsageManager(
 
     suspend fun getAppUsagePurchases(appId: String): List<AppUsagePurchase> =
         appUsagePurchaseDao.getAll().filter { it.appId == appId }
+
+    /**
+     * Clears all app usage purchases.
+     *
+     * Currently this deletes every [AppUsagePurchase] record; if per-day semantics
+     * are introduced later this can be refined (e.g. clear only today's).
+     */
+    suspend fun clearAllPurchasesTodayOrAll() {
+        appUsagePurchaseDao.deleteAll()
+    }
 }

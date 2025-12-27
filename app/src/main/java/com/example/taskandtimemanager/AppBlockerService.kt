@@ -20,6 +20,7 @@ import com.example.taskandtimemanager.data.AppBlockerStatusHolder
 import com.example.taskandtimemanager.data.AppDatabase
 import com.example.taskandtimemanager.data.AppUsageManager
 import com.example.taskandtimemanager.data.CoinManager
+import com.example.taskandtimemanager.data.ResetCoordinator
 import com.example.taskandtimemanager.data.TrackedAppDao
 import com.example.taskandtimemanager.data.UsageTracker
 import java.time.LocalDate
@@ -54,6 +55,7 @@ class AppBlockerService : Service() {
     private lateinit var coinManager: CoinManager
     private lateinit var trackedAppDao: TrackedAppDao
     private lateinit var usageTracker: UsageTracker
+    private lateinit var resetCoordinator: ResetCoordinator
 
     // System services
     private lateinit var usageStatsManager: UsageStatsManager
@@ -86,6 +88,7 @@ class AppBlockerService : Service() {
             rewardRedemptionDao = db.rewardRedemptionDao(),
             appUsagePurchaseDao = db.appUsagePurchaseDao(),
         )
+        resetCoordinator = ResetCoordinator(this)
 
         devicePolicyManager = getSystemService(Context.DEVICE_POLICY_SERVICE) as DevicePolicyManager
         adminComponent = ComponentName(this, AdminReceiver::class.java)
@@ -128,6 +131,12 @@ class AppBlockerService : Service() {
     private suspend fun checkCurrentForegroundAppAndBlockIfNeeded() {
         val hasUsageAccess = hasUsageAccessPermission()
         val packageName = getCurrentForegroundPackageNameInternal(hasUsageAccess)
+
+        // Perform any due daily / weekly resets whenever we inspect the
+        // foreground app. This replaces the previous periodic work-based
+        // mechanism and keeps semantics identical while tying execution to
+        // actual user activity.
+        resetCoordinator.performResetsIfNeeded()
 
         Log.d(
             TAG,

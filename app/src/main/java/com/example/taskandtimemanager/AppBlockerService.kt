@@ -167,21 +167,51 @@ class AppBlockerService : Service() {
             return
         }
 
-        // Night override handling: when enabled, allow usage until 06:00 local
-        // time without enforcing purchased minutes. After 06:00, automatically
-        // clear the flag on next evaluation.
+        // Night override handling using activation time:
+        // - When the override is turned on we store [nightOverrideActivatedAt].
+        // - If it was activated *before* today's 06:00, it belongs to the
+        //   current "night" and stays active only until 06:00 today.
+        // - If it was activated *after* today's 06:00, it belongs to the
+        //   upcoming night and stays active until 06:00 tomorrow.
         val now = LocalDateTime.now()
+        val todayForNightOverride = now.toLocalDate()
         val currentTime = now.toLocalTime()
         val cutoff = java.time.LocalTime.of(6, 0)
-        if (trackedApp.nightOverrideEnabled) {
-            if (currentTime.isBefore(cutoff)) {
-                Log.d(TAG, "Night override enabled for ${trackedApp.packageName}; allowing usage until 06:00")
-                return
-            } else {
-                Log.d(TAG, "Night override expired for ${trackedApp.packageName}; clearing flag")
-                // Clear override flag once it's past 06:00
-                val updated = trackedApp.copy(nightOverrideEnabled = false)
-                appUsageManager.updateTrackedApp(updated)
+
+        if (trackedApp.nightOverrideEnabled && trackedApp.nightOverrideActivatedAt != null) {
+            val activatedAt = try {
+                LocalDateTime.parse(trackedApp.nightOverrideActivatedAt)
+            } catch (e: Exception) {
+                Log.w(TAG, "Failed to parse nightOverrideActivatedAt='${trackedApp.nightOverrideActivatedAt}'", e)
+                null
+            }
+
+            if (activatedAt != null) {
+                val activationDate = activatedAt.toLocalDate()
+                val activationTime = activatedAt.toLocalTime()
+
+                val cutoffToday = todayForNightOverride.atTime(cutoff)
+                val expiresAt = if (!activationTime.isAfter(cutoff)) {
+                    // Activated at or before 06:00 -> valid until 06:00 today.
+                    cutoffToday
+                } else {
+                    // Activated after 06:00 -> valid until 06:00 tomorrow.
+                    cutoffToday.plusDays(1)
+                }
+
+                val nowInstant = now
+                if (nowInstant.isBefore(expiresAt)) {
+                    Log.d(TAG, "Night override active for ${trackedApp.packageName} until $expiresAt; allowing usage")
+                    return
+                } else {
+                    Log.d(TAG, "Night override expired for ${trackedApp.packageName} at $expiresAt; clearing flag")
+                    val updated = trackedApp.copy(
+                        nightOverrideEnabled = false,
+                        nightOverrideActivatedAt = null,
+                    )
+                    appUsageManager.updateTrackedApp(updated)
+                    // Fall through to normal blocking logic.
+                }
             }
         }
 

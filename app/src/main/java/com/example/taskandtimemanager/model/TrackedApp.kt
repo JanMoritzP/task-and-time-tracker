@@ -13,9 +13,12 @@ data class TrackedApp(
     val purchasedMinutesTotal: Long = 0L,
     val isBlocked: Boolean = false,
     /**
-     * When true, this app is exempt from blocking checks during the current
-     * night session. The flag is automatically cleared after 06:00 local time
-     * by the blocker service when it next evaluates the app.
+     * When true, this app is exempt from blocking checks until the next
+     * nightly cutoff (06:00 local time). [nightOverrideActivatedAt] records
+     * when the override was turned on so we can distinguish between
+     * overrides that started before/after the daily cutoff.
      */
     val nightOverrideEnabled: Boolean = false,
+    /** ISO-8601 timestamp of when the night override was last activated. */
+    val nightOverrideActivatedAt: String? = null,
 )

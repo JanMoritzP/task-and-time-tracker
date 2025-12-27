@@ -175,14 +175,24 @@ fun AppConfigScreen(
                                 checked = app.nightOverrideEnabled,
                                 onCheckedChange = { enabled ->
                                     scope.launch {
-                                        val updated = app.copy(nightOverrideEnabled = enabled)
+                                        val updated = if (enabled) {
+                                            app.copy(
+                                                nightOverrideEnabled = true,
+                                                nightOverrideActivatedAt = java.time.LocalDateTime.now().toString(),
+                                            )
+                                        } else {
+                                            app.copy(
+                                                nightOverrideEnabled = false,
+                                                nightOverrideActivatedAt = null,
+                                            )
+                                        }
                                         dataStore.updateTrackedApp(updated)
                                         apps = dataStore.getTrackedApps()
                                     }
                                 },
                             )
                             Text(
-                                text = "Night override (until 06:00)",
+                                text = "Night override (until ~06:00 next morning)",
                                 fontSize = 10.sp,
                             )
                         }
